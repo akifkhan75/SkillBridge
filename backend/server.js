@@ -37,6 +37,7 @@ const findChatThreadById = (id) => mockChatThreadsStore.find(t => t.id === id);
 
 // --- Auth Routes ---
 app.post('/api/auth/login', (req, res) => {
+  console.log('login---')
   const { email, password } = req.body;
   // console.log(`Login attempt for email: ${email}`); // Optional: for debugging
   if (!email || !password) {
@@ -46,7 +47,7 @@ app.post('/api/auth/login', (req, res) => {
   const userRecord = mockUsersStore.find(u => u.email.toLowerCase() === email.toLowerCase());
 
   if (userRecord && userRecord.password === password) {
-    // console.log(`Login successful for user: ${email}`);
+    console.log(`Login successful for user: ${email}`);
     // User found and password matches. Omit password from the returned user object.
     const { password: _, ...userToReturn } = userRecord;
     res.json(userToReturn);
