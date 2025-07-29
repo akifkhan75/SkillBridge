@@ -128,7 +128,7 @@ const DisabledButtonText = styled(Text)`
 `;
 
 export const OfferCard: React.FC<OfferCardProps> = ({ offer, type }) => {
-  const IconComponent = offer.icon;
+  const IconComponent = offer.icon || (() => null);
   const featuresOrBenefits = type === 'package' ? (offer as ServicePackage).includedFeatures : (offer as SubscriptionPlan).benefits;
   const price = type === 'package' ? (offer as ServicePackage).indicativePrice : `${(offer as SubscriptionPlan).pricePerTerm} (${(offer as SubscriptionPlan).frequency})`;
 
