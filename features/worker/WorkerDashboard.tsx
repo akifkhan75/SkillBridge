@@ -79,7 +79,7 @@ export const WorkerDashboard: React.FC = () => {
   return (
     <Drawer.Navigator
       drawerContent={(props: DrawerContentComponentProps) => <WorkerNav {...props} worker={currentWorkerDetails} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{ headerShown: true }}
     >
       <Drawer.Screen name="Dashboard">{props => <DashboardPage {...props} worker={currentWorkerDetails} />}</Drawer.Screen>
       <Drawer.Screen name="JobRequests">{props => <JobRequestsPage {...props} worker={currentWorkerDetails} />}</Drawer.Screen>

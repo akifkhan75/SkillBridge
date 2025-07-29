@@ -11,15 +11,17 @@ import {
 import type { SignupFormData } from '../features/auth/SignupPage';
 
 // For Android emulator, use 'http://10.0.2.2:3002/api'. For iOS simulator or physical device on same network, use your machine's local IP.
-const API_BASE_URL = 'http://localhost:3002/api';
+const API_BASE_URL = 'http://10.0.2.2:3002/api';
 
 // --- Auth ---
 export const loginUserAPI = async (email: string, password: string): Promise<User | null> => {
+  console.log('login api')
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
+  console.log('login resp---',response)
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: 'Invalid credentials' }));
     throw new Error(errorData.message);
