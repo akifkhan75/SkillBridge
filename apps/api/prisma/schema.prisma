@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserType {
+  customer
+  worker
+  admin
+}
+
+enum JobCategory {
+  PLUMBING
+  ELECTRICAL
+  CARPENTRY
+  MECHANICS
+  PAINTING
+  CLEANING
+  HVAC
+  GENERAL_HANDYMAN
+  SALON
+  CAR_SERVICES
+  OTHER
+}
+
+enum JobStatus {
+  CREATED
+  MATCHES_FOUND
+  AWAITING_WORKER
+  ACCEPTED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActivationStatus {
+  ACTIVE
+  PENDING_REVIEW
+  INACTIVE
+}
+
+enum VerificationStatus {
+  NONE
+  SUBMITTED
+  CHECKED
+  VERIFIED
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String
+  password          String
+  type              UserType
+  profileImageUrl   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  worker            Worker?
+  jobRequests       JobRequest[]
+  sentMessages      ChatMessage[] @relation("SentMessages")
+  receivedMessages  ChatMessage[] @relation("ReceivedMessages")
+  chatThreads       ChatThread[]
+
+  @@index([email])
+}
+
+model Worker {
+  id                    String            @id
+  user                  User              @relation(fields: [id], references: [id], onDelete: Cascade)
+  skills                JobCategory[]
+  rating                Float             @default(0)
+  homeAddress           String?
+  availability          String?
+  hourlyRateRange       String?
+  isVerified            Boolean           @default(false)
+  bio                   String?
+  experienceYears       Int               @default(0)
+  licenseDetails        String?
+  isLicenseVerified     Boolean           @default(false)
+  hasInsurance          Boolean           @default(false)
+  equipment             String[]
+  isOnline              Boolean           @default(false)
+  serviceRadius         Int               @default(20)
+  minimumCallOutFee     Float?
+  activationStatus      ActivationStatus  @default(PENDING_REVIEW)
+  idVerifiedStatus      VerificationStatus @default(NONE)
+  backgroundCheckStatus VerificationStatus @default(NONE)
+  referencesStatus      VerificationStatus @default(NONE)
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  assignedJobs          JobRequest[]
+
+  @@index([activationStatus])
+}
+
+model JobRequest {
+  id              String      @id @default(cuid())
+  customerId      String
+  customer        User        @relation(fields: [customerId], references: [id])
+  customerName    String
+  description     String
+  jobType         JobCategory
+  urgency         String?
+  severity        String?
+  estimatedDuration String?
+  priceEstimate   String?
+  status          JobStatus   @default(CREATED)
+  location        String?
+  requestedDate   String?
+  assignedWorkerId String?
+  assignedWorker  Worker?     @relation(fields: [assignedWorkerId], references: [id])
+  paymentAmount   Float?
+  paymentDate     DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  chatThreads     ChatThread[]
+
+  @@index([customerId])
+  @@index([status])
+}
+
+model ChatThread {
+  id            String   @id @default(cuid())
+  jobRequestId  String?
+  jobRequest    JobRequest? @relation(fields: [jobRequestId], references: [id])
+  lastMessageAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participants  User[]
+  messages      ChatMessage[]
+}
+
+model ChatMessage {
+  id         String      @id @default(cuid())
+  threadId   String
+  thread     ChatThread  @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User        @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User        @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  text       String
+  isRead     Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+
+  @@index([threadId])
+}
+
+model ServicePackage {
+  id               String      @id @default(cuid())
+  name             String
+  description      String?
+  categoryName     JobCategory
+  includedFeatures String[]    @default([])
+  indicativePrice  String?
+  iconName         String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+}
+
+model SubscriptionPlan {
+  id           String      @id @default(cuid())
+  name         String
+  description  String?
+  categoryName JobCategory
+  frequency    String?
+  pricePerTerm String?
+  benefits     String[]    @default([])
+  iconName     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+}

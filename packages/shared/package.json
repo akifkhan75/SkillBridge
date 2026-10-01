@@ -1,0 +1,16 @@
+{
+  "name": "@skillbridge/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "lint": "eslint src/",
+    "test": "jest"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
