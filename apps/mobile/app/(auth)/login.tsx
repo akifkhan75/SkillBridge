@@ -1,21 +1,37 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { useAppDispatch, useAppSelector } from '../../src/hooks/useRedux';
 import { loginUser, selectIsAuthLoading, selectAuthError, clearAuthError, selectCurrentUser } from '../../src/store/authSlice';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../src/theme';
+
+const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginScreen() {
   const dispatch = useAppDispatch();
   const isLoading = useAppSelector(selectIsAuthLoading);
   const authError = useAppSelector(selectAuthError);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const currentUser = useAppSelector(selectCurrentUser);
+
+  const { control, handleSubmit, setValue, formState: { errors } } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
 
   React.useEffect(() => {
     if (currentUser) {
@@ -23,10 +39,9 @@ export default function LoginScreen() {
     }
   }, [currentUser]);
 
-  const handleLogin = () => {
-    if (!email || !password) return;
+  const onSubmit = (data: LoginFormData) => {
     dispatch(clearAuthError());
-    dispatch(loginUser({ email, password }));
+    dispatch(loginUser(data));
   };
 
   const theme = colors.dark;
@@ -64,33 +79,49 @@ export default function LoginScreen() {
             </View>
           )}
 
-          <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email</Text>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="you@example.com"
-              placeholderTextColor={theme.textTertiary}
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceElevated, borderColor: errors.email ? theme.error : theme.border }]}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Email</Text>
+                <TextInput
+                  style={[styles.input, { color: theme.textPrimary }]}
+                  placeholder="you@example.com"
+                  placeholderTextColor={theme.textTertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                />
+                {errors.email && <Text style={styles.fieldErrorText}>{errors.email.message}</Text>}
+              </View>
+            )}
+          />
 
-          <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceElevated, borderColor: theme.border }]}>
-            <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Password</Text>
-            <TextInput
-              style={[styles.input, { color: theme.textPrimary }]}
-              placeholder="Enter your password"
-              placeholderTextColor={theme.textTertiary}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-            />
-          </View>
+          <Controller
+            control={control}
+            name="password"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <View style={[styles.inputWrapper, { backgroundColor: theme.surfaceElevated, borderColor: errors.password ? theme.error : theme.border }]}>
+                <Text style={[styles.inputLabel, { color: theme.textSecondary }]}>Password</Text>
+                <TextInput
+                  style={[styles.input, { color: theme.textPrimary }]}
+                  placeholder="Enter your password"
+                  placeholderTextColor={theme.textTertiary}
+                  secureTextEntry
+                  onBlur={onBlur}
+                  onChangeText={onChange}
+                  value={value}
+                />
+                {errors.password && <Text style={styles.fieldErrorText}>{errors.password.message}</Text>}
+              </View>
+            )}
+          />
 
-          <TouchableOpacity onPress={handleLogin} disabled={isLoading} activeOpacity={0.8}>
+          <TouchableOpacity onPress={handleSubmit(onSubmit)} disabled={isLoading} activeOpacity={0.8}>
             <LinearGradient
               colors={['#7C3AED', '#4F46E5']}
               start={{ x: 0, y: 0 }}
@@ -124,13 +155,13 @@ export default function LoginScreen() {
         <View style={styles.demoSection}>
           <Text style={[styles.demoTitle, { color: theme.textTertiary }]}>Demo Accounts</Text>
           <TouchableOpacity
-            onPress={() => { setEmail('customer@example.com'); setPassword('password123'); }}
+            onPress={() => { setValue('email', 'customer@example.com'); setValue('password', 'password123'); }}
             style={[styles.demoChip, { backgroundColor: theme.surfaceElevated }]}
           >
             <Text style={{ color: theme.textSecondary, fontSize: fontSize.sm }}>👤 Customer</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => { setEmail('worker@example.com'); setPassword('password123'); }}
+            onPress={() => { setValue('email', 'worker@example.com'); setValue('password', 'password123'); }}
             style={[styles.demoChip, { backgroundColor: theme.surfaceElevated }]}
           >
             <Text style={{ color: theme.textSecondary, fontSize: fontSize.sm }}>🔧 Worker</Text>
@@ -163,6 +194,7 @@ const styles = StyleSheet.create({
   signupButtonText: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold },
   errorBanner: { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderRadius: borderRadius.md, padding: spacing.md },
   errorText: { color: colors.dark.error, fontSize: fontSize.sm, textAlign: 'center' },
+  fieldErrorText: { color: colors.dark.error, fontSize: fontSize.xs, marginTop: spacing.xs },
   demoSection: { marginTop: spacing['3xl'], alignItems: 'center', gap: spacing.sm },
   demoTitle: { fontSize: fontSize.xs, fontWeight: fontWeight.medium, marginBottom: spacing.xs },
   demoChip: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: borderRadius.full },

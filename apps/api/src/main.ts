@@ -10,7 +10,7 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.enableCors({
-    origin: '*', // Configure properly for production
+    origin: process.env.FRONTEND_URL || ['http://localhost:8081', 'http://localhost:3000'], // Restrict in production
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
