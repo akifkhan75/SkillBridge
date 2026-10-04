@@ -1,14 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { ChatGateway } from '../chat/gateways/chat.gateway';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
 
 @Injectable()
 export class JobsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly chatGateway: ChatGateway,
+  ) {}
 
   async create(userId: string, userName: string, dto: CreateJobDto) {
-    return this.prisma.jobRequest.create({
+    const job = await this.prisma.jobRequest.create({
       data: {
         customerId: userId,
         customerName: userName || 'Customer',
@@ -20,6 +24,8 @@ export class JobsService {
         severity: dto.severity,
         estimatedDuration: dto.estimatedDuration,
         priceEstimate: dto.priceEstimate,
+        isEmergency: dto.isEmergency || false,
+        imageUrl: dto.imageUrl,
         status: 'MATCHES_FOUND',
       },
       include: {
@@ -28,6 +34,12 @@ export class JobsService {
         },
       },
     });
+
+    if (job.isEmergency) {
+      this.chatGateway.server.emit('emergencyAlert', job);
+    }
+
+    return job;
   }
 
   async findAll(userId: string, userType: string, filters?: { status?: string; jobType?: string }) {

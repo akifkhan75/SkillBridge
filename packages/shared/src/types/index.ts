@@ -89,6 +89,7 @@ export interface IServiceAnalysis {
   severity: SeverityLevel;
   estimatedDuration?: string;
   priceEstimate?: PriceEstimateValue;
+  isEmergency?: boolean;
 }
 
 // ── Job Requests ─────────────────────────────────────────────
@@ -113,6 +114,8 @@ export interface IJobRequest {
   severity?: string;
   estimatedDuration?: string;
   priceEstimate?: string;
+  isEmergency?: boolean;
+  imageUrl?: string;
   status: JobStatus;
   location?: string;
   requestedDate?: string;

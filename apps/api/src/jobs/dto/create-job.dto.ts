@@ -42,4 +42,13 @@ export class CreateJobDto {
   @IsOptional()
   @IsString()
   priceEstimate?: string;
+
+  @ApiPropertyOptional({ example: false })
+  @IsOptional()
+  isEmergency?: boolean;
+
+  @ApiPropertyOptional({ example: 'https://...' })
+  @IsOptional()
+  @IsString()
+  imageUrl?: string;
 }

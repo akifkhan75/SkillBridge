@@ -119,6 +119,8 @@ model JobRequest {
   assignedWorker  Worker?     @relation(fields: [assignedWorkerId], references: [id])
   paymentAmount   Float?
   paymentDate     DateTime?
+  isEmergency     Boolean     @default(false)
+  imageUrl        String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 

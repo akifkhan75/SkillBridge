@@ -71,6 +71,13 @@ export default function CustomerLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="request-service"
+        options={{
+          href: null,
+          title: 'Request Service',
+        }}
+      />
     </Tabs>
   );
 }

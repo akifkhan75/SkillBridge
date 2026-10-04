@@ -14,6 +14,6 @@ export class AiController {
   @Post('analyze')
   @ApiOperation({ summary: 'Analyze a service request using AI' })
   analyze(@Body() dto: AnalyzeRequestDto) {
-    return this.aiService.analyzeServiceRequest(dto.description);
+    return this.aiService.analyzeServiceRequest(dto.description, dto.imageBase64);
   }
 }

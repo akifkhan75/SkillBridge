@@ -33,9 +33,9 @@ const initialState: CustomerFlow = {
 
 export const analyzeAndMatch = createAsyncThunk<
   { newJobRequest: IJobRequest; matches: IWorker[] },
-  { description: string; location: string },
+  { description: string; location: string; imageBase64?: string },
   { state: RootState; rejectValue: string }
->('customerFlow/analyzeAndMatch', async ({ description, location }, { getState, rejectWithValue }) => {
+>('customerFlow/analyzeAndMatch', async ({ description, location, imageBase64 }, { getState, rejectWithValue }) => {
   const { auth } = getState();
   if (!auth.currentUser || auth.currentUser.type !== 'customer') {
     return rejectWithValue('User is not a customer.');
@@ -43,7 +43,7 @@ export const analyzeAndMatch = createAsyncThunk<
 
   try {
     // AI analysis on backend
-    const analysis = await api.analyzeServiceRequest(description);
+    const analysis = await api.analyzeServiceRequest(description, imageBase64);
 
     // Create job request
     const newJob = await api.createJobRequest({
@@ -54,6 +54,8 @@ export const analyzeAndMatch = createAsyncThunk<
       severity: analysis.severity,
       estimatedDuration: analysis.estimatedDuration,
       priceEstimate: analysis.priceEstimate,
+      isEmergency: analysis.isEmergency,
+      imageUrl: imageBase64 ? 'provided' : undefined, // In a real app we'd upload to S3 and save URL
       requestedDate: 'ASAP',
     });
 

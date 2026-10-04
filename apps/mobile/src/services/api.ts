@@ -115,13 +115,13 @@ export async function updateJobRequest(id: string, data: Partial<IJobRequest>): 
 
 // ── AI ───────────────────────────────────────────────────────
 
-export async function analyzeServiceRequest(description: string) {
+export async function analyzeServiceRequest(description: string, imageBase64?: string) {
   return request<{
     jobType: string; urgency: string; severity: string;
-    estimatedDuration: string; priceEstimate: string;
+    estimatedDuration: string; priceEstimate: string; isEmergency: boolean;
   }>('/ai/analyze', {
     method: 'POST',
-    body: JSON.stringify({ description }),
+    body: JSON.stringify({ description, imageBase64 }),
   });
 }
 
