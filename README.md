@@ -1,98 +1,73 @@
-# SkillBridge - React Native
+# SkillBridge - Blue Collar Worker Platform
 
-This is the React Native version of the SkillBridge application, a platform designed to connect skilled workers with customers seeking their services. The app features distinct user flows for customers and workers, AI-powered service request analysis using the Google Gemini API, real-time chat, and comprehensive dashboards.
+SkillBridge is an advanced platform (built as a Turborepo Monorepo) designed to bridge the gap between skilled blue-collar workers (plumbers, electricians, carpenters, etc.) and customers in need of their services. The platform integrates AI-driven matching, real-time geolocation tracking, robust verification systems, and emergency response features.
 
 ## Features
 
 -   **Dual User Roles:** Separate, feature-rich interfaces for Customers and Workers.
 -   **AI Service Analysis:** Customers describe their needs in natural language, and the Gemini API analyzes the request to categorize it, determine urgency, and find matching professionals.
--   **Worker Matching:** Finds and displays the best-matched workers based on skills, availability, and location.
--   **Worker Dashboard:** A comprehensive dashboard for workers to manage job requests, view earnings, update their profile, and track performance analytics.
--   **Customer Dashboard:** An intuitive interface for customers to request services, browse professionals by category, and view worker profiles.
--   **Real-time Chat:** Integrated chat functionality for seamless communication between customers and workers.
--   **Multi-language Support:** The application is built with internationalization in mind, supporting English, Arabic, and Urdu.
+-   **Live GPS Tracking:** Customers can track workers in real-time as they approach the job site.
+-   **Worker Portfolio & Verification:** Visual gallery for workers to show past work and UI for document verification.
+-   **Worker Dashboard:** A comprehensive dashboard for workers to manage job requests, view earnings, and update their profile.
+-   **Real-time Chat:** Integrated WebSocket chat functionality for seamless communication.
+-   **Multi-language Support:** The application supports English, Arabic, and Urdu.
 
 ## Technology Stack
 
--   **Framework:** React Native
--   **State Management:** Redux Toolkit
--   **Navigation:** React Navigation (Native Stack, Drawer)
--   **Styling:** Styled Components
+-   **Monorepo:** Turborepo
+-   **Mobile App:** React Native, Expo, Redux Toolkit, React Navigation
+-   **Backend API:** NestJS, TypeScript, WebSocket (Socket.io)
+-   **Database:** PostgreSQL (via Prisma ORM)
+-   **Testing:** Jest, @testing-library/react-native (Test Coverage > 70%)
 -   **AI Integration:** Google Gemini API
--   **Mock Backend:** Express.js
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed on your development machine. Please follow the **React Native CLI Quickstart** guide for your specific OS on the [official React Native documentation](https://reactnative.dev/docs/environment-setup).
-
 -   **Node.js:** (v18 or newer)
--   **npm** or **Yarn**
--   **Watchman** (recommended for macOS)
--   **Java Development Kit (JDK)**
--   **Android Development Environment:**
-    -   Android Studio
-    -   Android SDK and build tools
--   **iOS Development Environment (macOS only):**
-    -   Xcode
-    -   CocoaPods
+-   **pnpm:** (Package manager for Turborepo)
+-   **Docker:** (To run the PostgreSQL database locally)
+-   **Expo CLI:** (For mobile development)
 
 ## Getting Started
 
 Follow these steps to get the application running on your local machine.
 
-### 1. API Key Setup
+### 1. Database Setup
 
-This application uses the Google Gemini API for its AI-powered service analysis. You will need a valid API key for these features to work.
-
--   Obtain your API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
--   The application expects the API key to be available as an environment variable named `API_KEY`. You must configure this in your build environment. For guidance on how to set up environment variables in React Native, refer to the official documentation or community best practices for your target platform (e.g., using `gradle.properties` for Android or Xcode build settings for iOS).
-
-### 2. Backend Server Setup
-
-The app relies on a local mock backend to serve data. This must be running before you start the mobile app.
+The backend requires a PostgreSQL database. A `docker-compose.yml` is provided.
 
 ```bash
-# 1. Navigate to the backend directory
-cd backend
+# 1. Start the database
+docker-compose up -d postgres
 
-# 2. Install dependencies
-npm install
-
-# 3. Start the mock server
-# It will run on http://localhost:3002
-npm start
+# 2. Push the Prisma schema
+pnpm --filter api db:push
 ```
-Leave this terminal window running. The server provides all the user, worker, and job data for the application.
 
-### 3. Mobile App Setup
+### 2. Environment Variables
 
-In a **new terminal window**, set up the React Native application.
+Create `.env` files in both the `apps/api` and `apps/mobile` directories based on `.env.example` templates if they exist, or set the necessary keys (like `GEMINI_API_KEY` for the backend).
+
+### 3. Running the Application
+
+This is a Turborepo. You can start all applications simultaneously from the root directory.
 
 ```bash
-# 1. Navigate to the project root directory
-# (If you are in the backend directory, run `cd ..`)
+# 1. Install dependencies
+pnpm install
 
-# 2. Install dependencies
-npm install
-
-# 3. For iOS, install the CocoaPods dependencies
-cd ios
-pod install
-cd ..
+# 2. Start the development servers (API and Mobile)
+pnpm run dev
 ```
 
-### 4. Running the Application
+### 4. Running Tests
 
-Ensure your emulator/simulator is running or a physical device is connected and properly configured.
+Extensive test suites have been written to guarantee stability.
 
-**To run on Android:**
 ```bash
-npx react-native run-android
-```
+# Run backend tests with coverage
+pnpm --filter api test:cov
 
-**To run on iOS:**
-```bash
-npx react-native run-ios
+# Run mobile tests
+pnpm --filter mobile test
 ```
-
-Once the build is complete, the SkillBridge application will launch on your selected device or simulator.
