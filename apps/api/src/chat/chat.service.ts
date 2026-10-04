@@ -47,13 +47,21 @@ export class ChatService {
     });
   }
 
-  async getMessages(threadId: string) {
+  async getMessages(threadId: string, userId: string) {
     const thread = await this.prisma.chatThread.findUnique({
       where: { id: threadId },
+      include: {
+        participants: { select: { id: true } }
+      }
     });
 
     if (!thread) {
       throw new NotFoundException('Thread not found');
+    }
+
+    const isParticipant = thread.participants.some(p => p.id === userId);
+    if (!isParticipant) {
+      throw new NotFoundException('Thread not found'); // 404 to avoid leaking existence
     }
 
     return this.prisma.chatMessage.findMany({
@@ -66,6 +74,15 @@ export class ChatService {
   }
 
   async sendMessage(senderId: string, dto: SendMessageDto) {
+    const thread = await this.prisma.chatThread.findUnique({
+      where: { id: dto.threadId },
+      include: { participants: { select: { id: true } } }
+    });
+
+    if (!thread || !thread.participants.some(p => p.id === senderId)) {
+      throw new NotFoundException('Thread not found');
+    }
+
     const message = await this.prisma.chatMessage.create({
       data: {
         threadId: dto.threadId,

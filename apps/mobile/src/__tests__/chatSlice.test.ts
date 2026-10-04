@@ -17,7 +17,7 @@ describe('chatSlice', () => {
     receiverId: 'u2',
     text: 'Hello',
     isRead: false,
-    createdAt: new Date(),
+    createdAt: new Date().toISOString(),
   };
 
   it('should handle initial state', () => {
@@ -47,7 +47,12 @@ describe('chatSlice', () => {
   });
 
   it('should handle fetchChatThreads.fulfilled', () => {
-    const mockThread: IChatThread = { id: 't1', createdAt: new Date(), updatedAt: new Date() };
+    const mockThread: IChatThread = { 
+      id: 't1', 
+      participants: [],
+      createdAt: new Date().toISOString(), 
+      updatedAt: new Date().toISOString() 
+    };
     const action = { type: fetchChatThreads.fulfilled.type, payload: [mockThread] };
     const state = chatReducer(initialState, action);
     expect(state.threads).toEqual([mockThread]);

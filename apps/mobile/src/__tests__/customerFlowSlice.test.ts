@@ -12,7 +12,7 @@ import customerFlowReducer, {
   setFilterSkill,
   setServiceFormVisibility,
 } from '../store/customerFlowSlice';
-import { ICategoryDefinition, ISubCategory } from '@skillbridge/shared';
+import { ICategoryDefinition, ISubCategory, JobCategory } from '@skillbridge/shared';
 
 describe('customerFlowSlice', () => {
   const initialState = {
@@ -30,16 +30,17 @@ describe('customerFlowSlice', () => {
 
   const mockCategory: ICategoryDefinition = {
     id: 'cat1',
-    name: 'Plumbing',
-    icon: 'wrench',
+    nameEnum: JobCategory.PLUMBING,
+    iconName: 'water',
+    color: '#000',
+    textColor: '#FFF',
+    descriptionKey: 'plumb',
     subCategories: [],
   };
 
   const mockSubCategory: ISubCategory = {
     id: 'sub1',
     name: 'Leak Repair',
-    priceEstimate: '$50',
-    durationEstimate: '1 hr',
   };
 
   it('should handle initial state', () => {
@@ -47,8 +48,8 @@ describe('customerFlowSlice', () => {
   });
 
   it('should handle setCustomerPage', () => {
-    const nextState = customerFlowReducer(initialState, setCustomerPage('JOBS_OVERVIEW'));
-    expect(nextState.page).toBe('JOBS_OVERVIEW');
+    const nextState = customerFlowReducer(initialState, setCustomerPage('BOOKINGS'));
+    expect(nextState.page).toBe('BOOKINGS');
     expect(nextState.customerFlowState).toBe('SELECTING_SERVICE');
   });
 
@@ -103,7 +104,7 @@ describe('customerFlowSlice', () => {
   });
 
   it('should handle setFilterSkill', () => {
-    expect(customerFlowReducer(initialState, setFilterSkill('PLUMBER')).filterSkill).toBe('PLUMBER');
+    expect(customerFlowReducer(initialState, setFilterSkill(JobCategory.PLUMBING)).filterSkill).toBe(JobCategory.PLUMBING);
   });
 
   it('should handle setServiceFormVisibility', () => {

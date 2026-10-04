@@ -44,23 +44,31 @@ describe('ChatService', () => {
 
   describe('getMessages', () => {
     it('should return messages for a thread', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1' });
+      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user1' }] });
       const messages = [{ id: 'msg1', text: 'Hello' }];
       mockPrisma.chatMessage.findMany.mockResolvedValue(messages);
 
-      const result = await service.getMessages('thread1');
+      const result = await service.getMessages('thread1', 'user1');
       expect(result).toEqual(messages);
+    });
+
+    it('should throw NotFoundException if user is not a participant', async () => {
+      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user2' }] });
+      
+      await expect(service.getMessages('thread1', 'user1')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException for nonexistent thread', async () => {
       mockPrisma.chatThread.findUnique.mockResolvedValue(null);
 
-      await expect(service.getMessages('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.getMessages('nonexistent', 'user1')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('sendMessage', () => {
     it('should create a message and update thread', async () => {
+      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user1' }, { id: 'user2' }] });
+      
       const message = { id: 'msg1', text: 'Hello', threadId: 'thread1' };
       mockPrisma.chatMessage.create.mockResolvedValue(message);
       mockPrisma.chatThread.update.mockResolvedValue({});
@@ -77,6 +85,16 @@ describe('ChatService', () => {
           where: { id: 'thread1' },
         }),
       );
+    });
+
+    it('should throw NotFoundException if user is not in thread', async () => {
+      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user2' }, { id: 'user3' }] });
+      
+      await expect(service.sendMessage('user1', {
+        threadId: 'thread1',
+        receiverId: 'user2',
+        text: 'Hello',
+      })).rejects.toThrow(NotFoundException);
     });
   });
 

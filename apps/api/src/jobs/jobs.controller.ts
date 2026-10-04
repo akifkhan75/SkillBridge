@@ -38,19 +38,33 @@ export class JobsController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get job request by ID' })
-  findOne(@Param('id') id: string) {
-    return this.jobsService.findById(id);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('type') userType: string,
+  ) {
+    return this.jobsService.findById(id, userId, userType);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update job request (partial)' })
-  update(@Param('id') id: string, @Body() dto: UpdateJobDto) {
-    return this.jobsService.update(id, dto);
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateJobDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('type') userType: string,
+  ) {
+    return this.jobsService.update(id, dto, userId, userType);
   }
 
   @Put(':id')
   @ApiOperation({ summary: 'Update job request (full)' })
-  replace(@Param('id') id: string, @Body() dto: UpdateJobDto) {
-    return this.jobsService.update(id, dto);
+  replace(
+    @Param('id') id: string,
+    @Body() dto: UpdateJobDto,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('type') userType: string,
+  ) {
+    return this.jobsService.update(id, dto, userId, userType);
   }
 }

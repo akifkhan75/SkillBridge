@@ -69,13 +69,40 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Check if account is locked
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const remainingMinutes = Math.ceil((user.lockoutUntil.getTime() - new Date().getTime()) / 60000);
+      throw new UnauthorizedException(`Account locked due to too many failed attempts. Try again in ${remainingMinutes} minutes.`);
+    }
+
     const isValidPassword = await bcrypt.compare(dto.password, user.password);
 
     if (!isValidPassword) {
+      // Increment failed attempts
+      const failedAttempts = (user.failedLoginAttempts || 0) + 1;
+      let lockoutUntil = null;
+
+      if (failedAttempts >= 5) {
+        lockoutUntil = new Date(Date.now() + 15 * 60000); // Lock for 15 mins
+      }
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: failedAttempts, lockoutUntil },
+      });
+
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const { password: _, ...userWithoutPassword } = user;
+    // Reset failed attempts on success
+    if (user.failedLoginAttempts > 0) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockoutUntil: null },
+      });
+    }
+
+    const { password: _, failedLoginAttempts: __, lockoutUntil: ___, ...userWithoutPassword } = user;
     const token = this.generateToken(userWithoutPassword);
 
     return { user: userWithoutPassword, token };

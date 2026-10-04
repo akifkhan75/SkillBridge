@@ -6,6 +6,8 @@ import dataReducer from './dataSlice';
 import chatReducer from './chatSlice';
 import uiReducer from './uiSlice';
 
+import trackingReducer from './trackingSlice';
+
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -14,6 +16,7 @@ export const store = configureStore({
     data: dataReducer,
     chat: chatReducer,
     ui: uiReducer,
+    tracking: trackingReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

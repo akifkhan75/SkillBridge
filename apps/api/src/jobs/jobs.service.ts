@@ -55,7 +55,7 @@ export class JobsService {
     });
   }
 
-  async findById(id: string) {
+  async findById(id: string, userId: string, userType: string) {
     const job = await this.prisma.jobRequest.findUnique({
       where: { id },
       include: {
@@ -68,13 +68,36 @@ export class JobsService {
       throw new NotFoundException('Job not found');
     }
 
+    if (userType === 'customer' && job.customerId !== userId) {
+      throw new NotFoundException('Job not found'); // Use 404 to not leak existence
+    }
+
+    if (userType === 'worker') {
+      // Workers can see jobs that are unassigned (open market) OR assigned to them
+      if (job.assignedWorkerId && job.assignedWorkerId !== userId) {
+        throw new NotFoundException('Job not found');
+      }
+    }
+
     return job;
   }
 
-  async update(id: string, dto: UpdateJobDto) {
+  async update(id: string, dto: UpdateJobDto, userId: string, userType: string) {
     const job = await this.prisma.jobRequest.findUnique({ where: { id } });
     if (!job) {
       throw new NotFoundException('Job not found');
+    }
+
+    if (userType === 'customer' && job.customerId !== userId) {
+      throw new NotFoundException('Job not found');
+    }
+
+    if (userType === 'worker') {
+      // Worker can only update if it is assigned to them, or if they are accepting an open job
+      const isAccepting = !job.assignedWorkerId && dto.assignedWorkerId === userId;
+      if (!isAccepting && job.assignedWorkerId !== userId) {
+        throw new NotFoundException('Job not found');
+      }
     }
 
     return this.prisma.jobRequest.update({

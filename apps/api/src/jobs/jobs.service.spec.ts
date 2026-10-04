@@ -83,35 +83,48 @@ describe('JobsService', () => {
   });
 
   describe('findById', () => {
-    it('should return a job', async () => {
-      const job = { id: 'jr1', description: 'Test' };
+    it('should return a job if customer owns it', async () => {
+      const job = { id: 'jr1', description: 'Test', customerId: 'cust1' };
       mockPrisma.jobRequest.findUnique.mockResolvedValue(job);
 
-      const result = await service.findById('jr1');
+      const result = await service.findById('jr1', 'cust1', 'customer');
       expect(result).toEqual(job);
+    });
+
+    it('should throw NotFoundException if customer does not own it', async () => {
+      const job = { id: 'jr1', description: 'Test', customerId: 'cust1' };
+      mockPrisma.jobRequest.findUnique.mockResolvedValue(job);
+
+      await expect(service.findById('jr1', 'other_cust', 'customer')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException if not found', async () => {
       mockPrisma.jobRequest.findUnique.mockResolvedValue(null);
 
-      await expect(service.findById('nonexistent')).rejects.toThrow(NotFoundException);
+      await expect(service.findById('nonexistent', 'user1', 'customer')).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('update', () => {
-    it('should update a job', async () => {
-      mockPrisma.jobRequest.findUnique.mockResolvedValue({ id: 'jr1' });
+    it('should update a job if customer owns it', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({ id: 'jr1', customerId: 'cust1' });
       const updated = { id: 'jr1', status: 'ACCEPTED' };
       mockPrisma.jobRequest.update.mockResolvedValue(updated);
 
-      const result = await service.update('jr1', { status: 'ACCEPTED' } as any);
+      const result = await service.update('jr1', { status: 'ACCEPTED' } as any, 'cust1', 'customer');
       expect(result.status).toBe('ACCEPTED');
+    });
+
+    it('should throw NotFoundException if customer does not own it on update', async () => {
+      mockPrisma.jobRequest.findUnique.mockResolvedValue({ id: 'jr1', customerId: 'cust1' });
+
+      await expect(service.update('jr1', { status: 'ACCEPTED' } as any, 'other_cust', 'customer')).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException if job not found', async () => {
       mockPrisma.jobRequest.findUnique.mockResolvedValue(null);
 
-      await expect(service.update('nonexistent', {} as any)).rejects.toThrow(NotFoundException);
+      await expect(service.update('nonexistent', {} as any, 'user1', 'customer')).rejects.toThrow(NotFoundException);
     });
   });
 });

@@ -84,4 +84,20 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
     }
   }
+
+  @SubscribeMessage('locationUpdate')
+  handleLocationUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { receiverId: string; latitude: number; longitude: number; heading?: number },
+  ) {
+    const receiverSocketId = this.userSocketMap.get(data.receiverId);
+    if (receiverSocketId) {
+      this.server.to(receiverSocketId).emit('locationUpdate', {
+        workerId: client.handshake.query.userId,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        heading: data.heading,
+      });
+    }
+  }
 }

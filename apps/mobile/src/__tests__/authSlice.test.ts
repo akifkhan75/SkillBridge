@@ -1,5 +1,5 @@
 import authReducer, { signupUser, loginUser, clearAuthError, logoutUser } from '../store/authSlice';
-import { IAuthResponse, IUser, AuthFlowState } from '@skillbridge/shared';
+import { IAuthResponse, IUser, AuthFlowState, UserType } from '@skillbridge/shared';
 
 describe('authSlice', () => {
   const initialState = {
@@ -14,9 +14,9 @@ describe('authSlice', () => {
     id: '123',
     email: 'test@example.com',
     name: 'Test User',
-    type: 'customer',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    type: UserType.CUSTOMER,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   it('should handle initial state', () => {

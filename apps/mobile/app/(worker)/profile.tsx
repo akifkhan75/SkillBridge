@@ -4,7 +4,25 @@ import { DrawerActions } from '@react-navigation/native';
 import { useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import WorkerPortfolio from '../../src/components/ui/WorkerPortfolio';
+
 const SCREEN_TITLE = 'My Profile';
+
+const MOCK_PORTFOLIO = [
+  {
+    id: '1',
+    title: 'Bathroom Plumbing Fix',
+    description: 'Fixed a major pipe leak and replaced the entire sink pipeline setup under 2 hours.',
+    imageUrl: 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=800',
+    beforeImageUrl: 'https://images.unsplash.com/photo-1585868627063-47a3e9c7015a?auto=format&fit=crop&q=80&w=800'
+  },
+  {
+    id: '2',
+    title: 'Electrical Panel Upgrade',
+    description: 'Upgraded a 100A panel to 200A, complete with labeling and new breakers.',
+    imageUrl: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&q=80&w=800',
+  }
+];
 
 export default function Screen() {
   const navigation = useNavigation();
@@ -17,8 +35,8 @@ export default function Screen() {
         </TouchableOpacity>
         <Text style={styles.title}>{SCREEN_TITLE}</Text>
       </View>
-      <View style={styles.content}>
-        <Text style={styles.placeholder}>{SCREEN_TITLE} content</Text>
+      <View style={[styles.content, { justifyContent: 'flex-start' }]}>
+        <WorkerPortfolio portfolio={MOCK_PORTFOLIO} />
       </View>
     </SafeAreaView>
   );

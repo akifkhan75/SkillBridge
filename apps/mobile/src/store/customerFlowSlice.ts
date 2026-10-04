@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
-import type { CustomerFlowState, CustomerPage, IJobRequest, IWorker, ISubCategory, JobCategory } from '@skillbridge/shared';
+import type { CustomerFlowState, CustomerPage, IJobRequest, IWorker, ISubCategory, JobCategory, JobStatus } from '@skillbridge/shared';
 import type { ICategoryDefinition } from '@skillbridge/shared';
 import { MAX_MATCHED_WORKERS_TO_SHOW } from '@skillbridge/shared';
 import * as api from '../services/api';
@@ -49,7 +49,7 @@ export const analyzeAndMatch = createAsyncThunk<
     const newJob = await api.createJobRequest({
       description,
       location,
-      jobType: analysis.jobType,
+      jobType: analysis.jobType as JobCategory,
       urgency: analysis.urgency,
       severity: analysis.severity,
       estimatedDuration: analysis.estimatedDuration,
@@ -80,7 +80,7 @@ export const requestBooking = createAsyncThunk<
 
   try {
     const updatedJob = await api.updateJobRequest(currentJobRequestDetails.id, {
-      status: 'AWAITING_WORKER',
+      status: 'AWAITING_WORKER' as JobStatus,
       assignedWorkerId: workerId,
     });
     return updatedJob;

@@ -22,19 +22,31 @@ function SocketHandler({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function LocationTrackerHandler({ children }: { children: React.ReactNode }) {
+  const { useWorkerLocationTracker } = require('../src/hooks/useWorkerLocationTracker');
+  const { useCustomerLocationTracker } = require('../src/hooks/useCustomerLocationTracker');
+  
+  useWorkerLocationTracker();
+  useCustomerLocationTracker();
+
+  return <>{children}</>;
+}
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <SocketHandler>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'slide_from_right',
-              contentStyle: { backgroundColor: '#0A0A1A' },
-            }}
-          />
+          <LocationTrackerHandler>
+            <StatusBar style="light" />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: 'slide_from_right',
+                contentStyle: { backgroundColor: '#0A0A1A' },
+              }}
+            />
+          </LocationTrackerHandler>
         </SocketHandler>
       </Provider>
     </GestureHandlerRootView>

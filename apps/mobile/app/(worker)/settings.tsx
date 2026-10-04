@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 
 const SCREEN_TITLE = 'Settings';
 
+import DocumentVerification from '../../src/components/ui/DocumentVerification';
+
 export default function Screen() {
   const navigation = useNavigation();
 
@@ -18,7 +20,7 @@ export default function Screen() {
         <Text style={styles.title}>{SCREEN_TITLE}</Text>
       </View>
       <View style={styles.content}>
-        <Text style={styles.placeholder}>{SCREEN_TITLE} content</Text>
+        <DocumentVerification onUploadSuccess={() => console.log('Verified')} />
       </View>
     </SafeAreaView>
   );

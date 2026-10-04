@@ -10,6 +10,7 @@ const API_URL = Constants.expoConfig?.extra?.apiUrl
 class SocketService {
   private socket: Socket | null = null;
   private messageListeners: ((msg: IChatMessage) => void)[] = [];
+  private locationListeners: ((data: { workerId: string; latitude: number; longitude: number; heading?: number }) => void)[] = [];
   
   public async connect(userId: string) {
     if (this.socket) {
@@ -27,6 +28,10 @@ class SocketService {
 
     this.socket.on('newMessage', (message: IChatMessage) => {
       this.messageListeners.forEach(listener => listener(message));
+    });
+
+    this.socket.on('locationUpdate', (data: { workerId: string; latitude: number; longitude: number; heading?: number }) => {
+      this.locationListeners.forEach(listener => listener(data));
     });
 
     this.socket.on('disconnect', () => {
@@ -47,10 +52,23 @@ class SocketService {
     }
   }
 
+  public sendLocation(receiverId: string, latitude: number, longitude: number, heading?: number) {
+    if (this.socket && this.socket.connected) {
+      this.socket.emit('locationUpdate', { receiverId, latitude, longitude, heading });
+    }
+  }
+
   public onNewMessage(callback: (msg: IChatMessage) => void) {
     this.messageListeners.push(callback);
     return () => {
       this.messageListeners = this.messageListeners.filter(l => l !== callback);
+    };
+  }
+
+  public onLocationUpdate(callback: (data: { workerId: string; latitude: number; longitude: number; heading?: number }) => void) {
+    this.locationListeners.push(callback);
+    return () => {
+      this.locationListeners = this.locationListeners.filter(l => l !== callback);
     };
   }
 }

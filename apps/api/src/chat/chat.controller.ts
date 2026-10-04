@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { ChatService } from './chat.service';
@@ -20,8 +20,16 @@ export class ChatController {
   }
 
   @Get('threads/:userId')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get chat threads by user ID' })
-  getThreadsByUserId(@Param('userId') userId: string) {
+  getThreadsByUserId(
+    @Param('userId') userId: string,
+    @CurrentUser('id') currentUserId: string,
+  ) {
+    if (userId !== currentUserId) {
+      throw new UnauthorizedException('Unauthorized access to user threads');
+    }
     return this.chatService.getThreadsByUserId(userId);
   }
 
@@ -29,8 +37,11 @@ export class ChatController {
   @UseGuards(AuthGuard('jwt'))
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get messages in a thread' })
-  getMessages(@Param('threadId') threadId: string) {
-    return this.chatService.getMessages(threadId);
+  getMessages(
+    @Param('threadId') threadId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.chatService.getMessages(threadId, userId);
   }
 
   @Post('messages')
@@ -45,8 +56,16 @@ export class ChatController {
   }
 
   @Post('mark-read')
+  @UseGuards(AuthGuard('jwt'))
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Mark messages as read' })
-  markRead(@Body() dto: MarkReadDto) {
+  markRead(
+    @Body() dto: MarkReadDto,
+    @CurrentUser('id') userId: string,
+  ) {
+    if (dto.userId !== userId) {
+      throw new UnauthorizedException('Unauthorized access to mark read');
+    }
     return this.chatService.markAsRead(dto);
   }
 }
