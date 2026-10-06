@@ -17,7 +17,7 @@ export class JobsService {
         customerId: userId,
         customerName: userName || 'Customer',
         description: dto.description,
-        jobType: dto.jobType as any,
+        serviceId: (dto as any).serviceId,
         location: dto.location,
         requestedDate: dto.requestedDate,
         urgency: dto.urgency,
@@ -25,7 +25,6 @@ export class JobsService {
         estimatedDuration: dto.estimatedDuration,
         priceEstimate: dto.priceEstimate,
         isEmergency: dto.isEmergency || false,
-        imageUrl: dto.imageUrl,
         status: 'MATCHES_FOUND',
       },
       include: {
@@ -42,7 +41,7 @@ export class JobsService {
     return job;
   }
 
-  async findAll(userId: string, userType: string, filters?: { status?: string; jobType?: string }) {
+  async findAll(userId: string, userType: string, filters?: { status?: string; serviceId?: string }) {
     const where: any = {};
 
     if (userType === 'customer') {
@@ -50,7 +49,7 @@ export class JobsService {
     }
 
     if (filters?.status) where.status = filters.status;
-    if (filters?.jobType) where.jobType = filters.jobType;
+    if (filters?.serviceId) where.serviceId = filters.serviceId;
 
     return this.prisma.jobRequest.findMany({
       where,

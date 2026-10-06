@@ -50,7 +50,6 @@ export class AuthService {
       await this.prisma.worker.create({
         data: {
           id: user.id,
-          skills: ['GENERAL_HANDYMAN'],
         },
       });
     }

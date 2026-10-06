@@ -29,10 +29,12 @@ export default function WorkerLayout() {
       <Drawer.Screen name="payments" options={{ title: 'Payments', drawerIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} /> }} />
       <Drawer.Screen name="analytics" options={{ title: 'Analytics', drawerIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} /> }} />
       <Drawer.Screen name="schedule" options={{ title: 'Schedule', drawerIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} /> }} />
-      <Drawer.Screen name="ar-tools" options={{ title: 'AR Tools', drawerIcon: ({ color, size }) => <Ionicons name="cube" size={size} color={color} /> }} />
+
       <Drawer.Screen name="chat" options={{ title: 'Chat', drawerIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} /> }} />
       <Drawer.Screen name="profile" options={{ title: 'My Profile', drawerIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
       <Drawer.Screen name="settings" options={{ title: 'Settings', drawerIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
+      <Drawer.Screen name="quotes" options={{ drawerItemStyle: { display: 'none' } }} />
+      <Drawer.Screen name="evidence" options={{ drawerItemStyle: { display: 'none' } }} />
     </Drawer>
   );
 }

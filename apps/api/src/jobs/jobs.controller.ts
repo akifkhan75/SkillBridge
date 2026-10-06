@@ -26,14 +26,14 @@ export class JobsController {
   @Get()
   @ApiOperation({ summary: 'Get all job requests (filtered by user role)' })
   @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'jobType', required: false })
+  @ApiQuery({ name: 'serviceId', required: false })
   findAll(
     @CurrentUser('id') userId: string,
     @CurrentUser('type') userType: string,
     @Query('status') status?: string,
-    @Query('jobType') jobType?: string,
+    @Query('serviceId') serviceId?: string,
   ) {
-    return this.jobsService.findAll(userId, userType, { status, jobType });
+    return this.jobsService.findAll(userId, userType, { status, serviceId });
   }
 
   @Get(':id')

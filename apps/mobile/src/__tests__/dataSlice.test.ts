@@ -16,17 +16,17 @@ describe('dataSlice', () => {
   });
 
   it('should handle addJobRequest', () => {
-    const actual = dataReducer(initialState, addJobRequest({ id: '1', title: 'Job' } as any));
+    const actual = dataReducer(initialState, addJobRequest({ id: '1', description: 'Job' } as any));
     expect(actual.jobRequests.length).toEqual(1);
-    expect(actual.jobRequests[0].title).toEqual('Job');
+    expect(actual.jobRequests[0].description).toEqual('Job');
   });
 
   it('should handle updateJobRequest', () => {
     const state = {
       ...initialState,
-      jobRequests: [{ id: '1', title: 'Old Job' } as any]
+      jobRequests: [{ id: '1', description: 'Old Job' } as any]
     };
-    const actual = dataReducer(state, updateJobRequest({ id: '1', title: 'New Job' } as any));
-    expect(actual.jobRequests[0].title).toEqual('New Job');
+    const actual = dataReducer(state, updateJobRequest({ id: '1', description: 'New Job' } as any));
+    expect(actual.jobRequests[0].description).toEqual('New Job');
   });
 });

@@ -114,4 +114,56 @@ export class AiService {
       isEmergency: false,
     };
   }
+
+  async generateQuoteDraft(jobDescription: string, workerNotes: string): Promise<string> {
+    if (!this.model) return 'AI not configured. Please write your quote manually.';
+
+    const prompt = `
+      You are an AI assistant helping a professional tradesperson write a polite, professional, and clear price quote for a customer.
+      
+      Job Description from customer: "${jobDescription}"
+      Notes from the professional: "${workerNotes}"
+      
+      Draft a professional message that includes the quote breakdown and explains the work to be done. Keep it concise, friendly, and structured. Do NOT use markdown code blocks, just plain text.
+    `;
+    
+    try {
+      const result = await this.model.generateContent(prompt);
+      return result.response.text();
+    } catch (error) {
+      this.logger.error('Gemini Quote error:', error);
+      return 'Failed to generate quote draft.';
+    }
+  }
+
+  async screenForSafety(description: string): Promise<{ isSafe: boolean; flagReason?: string }> {
+    if (!this.model) return { isSafe: true };
+
+    const prompt = `
+      Analyze this service request description for safety hazards, illegal activities, or extreme emergencies that require 911 rather than a tradesperson (e.g., active house fire, active shooter, extreme gas leak).
+      
+      Description: "${description}"
+      
+      Respond ONLY in valid JSON format exactly like this:
+      {
+        "isSafe": boolean (false if hazardous/illegal/extreme emergency),
+        "flagReason": string (brief explanation if not safe, otherwise null)
+      }
+    `;
+
+    try {
+      const result = await this.model.generateContent(prompt);
+      const text = result.response.text();
+      const jsonStart = text.indexOf('{');
+      const jsonEnd = text.lastIndexOf('}') + 1;
+      const parsed = JSON.parse(text.slice(jsonStart, jsonEnd));
+      return {
+        isSafe: !!parsed.isSafe,
+        flagReason: parsed.flagReason || undefined
+      };
+    } catch (error) {
+      this.logger.error('Gemini Safety Check error:', error);
+      return { isSafe: true }; // default to safe if AI fails
+    }
+  }
 }

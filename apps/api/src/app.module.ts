@@ -11,6 +11,15 @@ import { ChatModule } from './chat/chat.module';
 import { ServicesModule } from './services/services.module';
 import { AiModule } from './ai/ai.module';
 import { AppController } from './app.controller';
+import { AddressesModule } from './addresses/addresses.module';
+import { QuotesModule } from './quotes/quotes.module';
+import { ReviewsModule } from './reviews/reviews.module';
+import { ChangeOrdersModule } from './change-orders/change-orders.module';
+import { VerificationsModule } from './verifications/verifications.module';
+import { DisputesModule } from './disputes/disputes.module';
+import { ServiceCatalogModule } from './service-catalog/service-catalog.module';
+import { PropertiesModule } from './properties/properties.module';
+import { RecurringJobsModule } from './recurring-jobs/recurring-jobs.module';
 
 @Module({
   imports: [
@@ -30,6 +39,15 @@ import { AppController } from './app.controller';
     ChatModule,
     ServicesModule,
     AiModule,
+    AddressesModule,
+    QuotesModule,
+    ReviewsModule,
+    ChangeOrdersModule,
+    VerificationsModule,
+    DisputesModule,
+    ServiceCatalogModule,
+    PropertiesModule,
+    RecurringJobsModule,
   ],
   controllers: [AppController],
 })

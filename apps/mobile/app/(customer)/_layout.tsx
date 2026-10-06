@@ -78,6 +78,20 @@ export default function CustomerLayout() {
           title: 'Request Service',
         }}
       />
+      <Tabs.Screen
+        name="quote-review"
+        options={{
+          href: null,
+          title: 'Quote Review',
+        }}
+      />
+      <Tabs.Screen
+        name="checkout"
+        options={{
+          href: null,
+          title: 'Checkout',
+        }}
+      />
     </Tabs>
   );
 }

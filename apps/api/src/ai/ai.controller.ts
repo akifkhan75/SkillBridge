@@ -16,4 +16,19 @@ export class AiController {
   analyze(@Body() dto: AnalyzeRequestDto) {
     return this.aiService.analyzeServiceRequest(dto.description, dto.imageBase64);
   }
+
+  @Post('safety-check')
+  @ApiOperation({ summary: 'Screen a service request description for safety/emergencies' })
+  screenForSafety(@Body('description') description: string) {
+    return this.aiService.screenForSafety(description);
+  }
+
+  @Post('quote-draft')
+  @ApiOperation({ summary: 'Generate a professional quote draft' })
+  generateQuoteDraft(
+    @Body('jobDescription') jobDescription: string,
+    @Body('workerNotes') workerNotes: string
+  ) {
+    return this.aiService.generateQuoteDraft(jobDescription, workerNotes);
+  }
 }

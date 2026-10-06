@@ -7,6 +7,8 @@ import { store } from '../src/store';
 import { useAppSelector } from '../src/hooks/useRedux';
 import { selectCurrentUser } from '../src/store/authSlice';
 import { socketService } from '../src/services/socket';
+import { useWorkerLocationTracker } from '../src/hooks/useWorkerLocationTracker';
+import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTracker';
 
 function SocketHandler({ children }: { children: React.ReactNode }) {
   const currentUser = useAppSelector(selectCurrentUser);
@@ -23,9 +25,6 @@ function SocketHandler({ children }: { children: React.ReactNode }) {
 }
 
 function LocationTrackerHandler({ children }: { children: React.ReactNode }) {
-  const { useWorkerLocationTracker } = require('../src/hooks/useWorkerLocationTracker');
-  const { useCustomerLocationTracker } = require('../src/hooks/useCustomerLocationTracker');
-  
   useWorkerLocationTracker();
   useCustomerLocationTracker();
 

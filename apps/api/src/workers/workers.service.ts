@@ -10,7 +10,7 @@ export class WorkersService {
     const where: any = { activationStatus: 'ACTIVE' };
 
     if (filters?.skill) {
-      where.skills = { has: filters.skill };
+      where.services = { some: { category: { name: filters.skill } } };
     }
     if (filters?.minRating) {
       where.rating = { gte: filters.minRating };
@@ -69,7 +69,7 @@ export class WorkersService {
       where: {
         activationStatus: 'ACTIVE',
         isOnline: true,
-        skills: { has: jobType as any },
+        services: { some: { category: { name: jobType as string } } },
       },
       include: {
         user: {
