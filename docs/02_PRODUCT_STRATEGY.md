@@ -1,4 +1,4 @@
-# Prolivo — Product Strategy & Competitive Positioning
+# Fixli — Product Strategy & Competitive Positioning
 
 ## Competitive landscape
 
@@ -15,7 +15,7 @@ Do not compete by being “another directory of plumbers.”
 
 Compete on the **service intelligence layer**.
 
-### Prolivo differentiation
+### Fixli differentiation
 
 1. **Tell / Show**
    - Text
@@ -115,7 +115,7 @@ Then replicate the playbook.
 
 ## Trust moat
 
-A provider should accumulate a portable “Prolivo Reputation” based on:
+A provider should accumulate a portable “Fixli Reputation” based on:
 - verified identity
 - verified credentials
 - completed jobs

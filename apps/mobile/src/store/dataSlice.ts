@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import type { IWorker, IJobRequest, IServicePackage, ISubscriptionPlan, IUser } from '@skillbridge/shared';
+import type { IWorker, IJobRequest, IServicePackage, ISubscriptionPlan, IUser } from '@fixli/shared';
 import * as api from '../services/api';
 import type { RootState } from './index';
 

@@ -1,4 +1,4 @@
-# Prolivo — AI Specification
+# Fixli — AI Specification
 
 ## AI philosophy
 

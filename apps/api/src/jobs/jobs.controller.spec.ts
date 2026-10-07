@@ -3,7 +3,7 @@ import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
-import { JobCategory } from '@skillbridge/shared';
+import { JobCategory } from '@fixli/shared';
 
 describe('JobsController', () => {
   let controller: JobsController;

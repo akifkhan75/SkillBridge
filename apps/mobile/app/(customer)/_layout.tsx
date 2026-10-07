@@ -1,25 +1,27 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../src/theme';
+import { useTheme } from '../../src/hooks/useTheme';
+import { useI18n } from '../../src/hooks/useI18n';
 
 export default function CustomerLayout() {
-  const theme = colors.dark;
+  const theme = useTheme();
+  const { t } = useI18n();
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.tabBar,
-          borderTopColor: theme.border,
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
           borderTopWidth: 1,
           height: 85,
           paddingBottom: 25,
           paddingTop: 10,
         },
-        tabBarActiveTintColor: theme.primary,
-        tabBarInactiveTintColor: theme.textTertiary,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
@@ -29,7 +31,7 @@ export default function CustomerLayout() {
       <Tabs.Screen
         name="(home)"
         options={{
-          title: 'Home',
+          title: t('nav.home') || 'Home',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home" size={size} color={color} />
           ),
@@ -38,36 +40,18 @@ export default function CustomerLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'Bookings',
+          title: t('nav.bookings') || 'My Jobs',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="chat"
-        options={{
-          title: 'Chat',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('nav.profile') || 'Account',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="person" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="settings" size={size} color={color} />
           ),
         }}
       />
@@ -79,17 +63,19 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="quote-review"
+        name="chat"
         options={{
-          href: null,
-          title: 'Quote Review',
+          title: t('nav.chat') || 'Chat',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="checkout"
+        name="job/[id]"
         options={{
           href: null,
-          title: 'Checkout',
+          title: 'Job',
         }}
       />
     </Tabs>

@@ -16,8 +16,8 @@ export default function Layout() {
       <aside className="sidebar glass-panel">
         <div className="sidebar-header">
           <div className="logo-container">
-            <div className="logo-box">S</div>
-            <h1 className="logo-text">Skill<span className="gradient-text">Bridge</span></h1>
+            <div className="logo-box">T</div>
+            <h1 className="logo-text">Trip<span className="gradient-text">ly</span></h1>
           </div>
           <p className="admin-badge">Admin Portal</p>
         </div>

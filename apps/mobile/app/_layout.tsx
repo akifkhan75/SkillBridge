@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { Provider } from 'react-redux';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +11,7 @@ import { socketService } from '../src/services/socket';
 import { useWorkerLocationTracker } from '../src/hooks/useWorkerLocationTracker';
 import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTracker';
 
-function SocketHandler({ children }: { children: React.ReactNode }) {
+function SocketHandler() {
   const currentUser = useAppSelector(selectCurrentUser);
 
   useEffect(() => {
@@ -21,32 +22,67 @@ function SocketHandler({ children }: { children: React.ReactNode }) {
     }
   }, [currentUser]);
 
-  return <>{children}</>;
+  return null;
 }
 
-function LocationTrackerHandler({ children }: { children: React.ReactNode }) {
+function LocationTrackerHandler() {
   useWorkerLocationTracker();
   useCustomerLocationTracker();
 
-  return <>{children}</>;
+  return null;
 }
 
+import {
+  useFonts,
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
+import * as SplashScreen from 'expo-splash-screen';
+
+SplashScreen.preventAutoHideAsync();
+
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
+import { I18nProvider } from '../src/hooks/useI18n';
+
 export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <SocketHandler>
-          <LocationTrackerHandler>
-            <StatusBar style="light" />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                animation: 'slide_from_right',
-                contentStyle: { backgroundColor: '#0A0A1A' },
-              }}
-            />
-          </LocationTrackerHandler>
-        </SocketHandler>
+        <I18nProvider>
+          <BottomSheetModalProvider>
+            <View style={{ flex: 1 }}>
+              <SocketHandler />
+              <LocationTrackerHandler />
+              <StatusBar style="light" />
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  contentStyle: { backgroundColor: '#0F172A' },
+                }}
+              />
+            </View>
+          </BottomSheetModalProvider>
+        </I18nProvider>
       </Provider>
     </GestureHandlerRootView>
   );

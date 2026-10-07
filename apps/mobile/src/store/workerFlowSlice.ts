@@ -1,5 +1,5 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
-import type { WorkerPage, ProjectsPageTab, PaymentTimeFilter } from '@skillbridge/shared';
+import type { WorkerPage, ProjectsPageTab, PaymentTimeFilter } from '@fixli/shared';
 import type { RootState } from './index';
 
 interface WorkerFlowState {

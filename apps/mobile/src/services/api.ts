@@ -1,5 +1,5 @@
 // ============================================================
-// SkillBridge API Service Layer
+// Fixli API Service Layer
 // Centralized API client with auth token management
 // ============================================================
 
@@ -8,11 +8,11 @@ import * as SecureStore from 'expo-secure-store';
 import type {
   IUser, IWorker, IJobRequest, IChatThread, IChatMessage,
   IServicePackage, ISubscriptionPlan, IAuthResponse,
-} from '@skillbridge/shared';
+} from '@fixli/shared';
 
 const API_URL = Constants.expoConfig?.extra?.apiUrl
   || process.env.EXPO_PUBLIC_API_URL
-  || 'http://localhost:3002/api';
+  || 'http://192.168.100.66:3002/api';
 
 // ── HTTP Client ──────────────────────────────────────────────
 
@@ -123,6 +123,19 @@ export async function analyzeServiceRequest(description: string, imageBase64?: s
     method: 'POST',
     body: JSON.stringify({ description, imageBase64 }),
   });
+}
+
+export async function generateQuoteDraft(jobDescription: string, workerNotes: string): Promise<string> {
+  const authHeaders = await getAuthHeaders();
+  const response = await fetch(`${API_URL}/ai/quote-draft`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders },
+    body: JSON.stringify({ jobDescription, workerNotes }),
+  });
+  if (!response.ok) {
+    throw new Error('Request failed');
+  }
+  return response.text();
 }
 
 // ── Chat ─────────────────────────────────────────────────────

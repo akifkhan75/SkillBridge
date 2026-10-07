@@ -1,4 +1,4 @@
-# Prolivo — Trust, Safety & Compliance
+# Fixli — Trust, Safety & Compliance
 
 ## 1. Professional verification tiers
 
@@ -56,7 +56,7 @@ For life-threatening emergencies:
 2. provide localized emergency number when verified
 3. provide basic non-dangerous guidance
 4. optionally notify trusted contacts
-5. do not imply Prolivo is emergency dispatch
+5. do not imply Fixli is emergency dispatch
 
 For property emergencies:
 - route to verified urgent professionals if available

@@ -1,6 +1,6 @@
-# Prolivo — Master Antigravity / Gemini Implementation Prompt
+# Fixli — Master Antigravity / Gemini Implementation Prompt
 
-You are the lead product engineer and software architect for Prolivo.
+You are the lead product engineer and software architect for Fixli.
 
 Build a production-grade global local-services marketplace from the attached product documentation.
 

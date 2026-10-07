@@ -1,6 +1,6 @@
-# SkillBridge - Blue Collar Worker Platform
+# Fixli - Blue Collar Worker Platform
 
-SkillBridge is an advanced platform (built as a Turborepo Monorepo) designed to bridge the gap between skilled blue-collar workers (plumbers, electricians, carpenters, etc.) and customers in need of their services. The platform integrates AI-driven matching, real-time geolocation tracking, robust verification systems, and emergency response features.
+Fixli is an advanced platform (built as a Turborepo Monorepo) designed to bridge the gap between skilled blue-collar workers (plumbers, electricians, carpenters, etc.) and customers in need of their services. The platform integrates AI-driven matching, real-time geolocation tracking, robust verification systems, and emergency response features.
 
 ## Features
 

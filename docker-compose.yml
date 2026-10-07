@@ -3,28 +3,28 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: skillbridge-db
+    container_name: fixli-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-skillbridge}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-skillbridge_secret}
-      POSTGRES_DB: ${POSTGRES_DB:-skillbridge}
+      POSTGRES_USER: ${POSTGRES_USER:-fixli}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fixli_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-fixli}
     ports:
       - '5434:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-skillbridge}']
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-fixli}']
       interval: 10s
       timeout: 5s
       retries: 5
 
   pgadmin:
     image: dpage/pgadmin4:latest
-    container_name: skillbridge-pgadmin
+    container_name: fixli-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@skillbridge.dev}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@fixli.dev}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
     ports:
       - '5050:80'
@@ -35,13 +35,13 @@ services:
       - pgadmin_data:/var/lib/pgadmin
 
   api:
-    build:
-      context: ./apps/api
-      dockerfile: Dockerfile
-    container_name: skillbridge-api
+    image: node:20
+    container_name: fixli-api
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && pnpm run db:generate && pnpm run dev:api"
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-skillbridge}:${POSTGRES_PASSWORD:-skillbridge_secret}@postgres:5432/${POSTGRES_DB:-skillbridge}?schema=public
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fixli}:${POSTGRES_PASSWORD:-fixli_secret}@postgres:5432/${POSTGRES_DB:-fixli}?schema=public
       JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       PORT: 3002
@@ -53,8 +53,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./apps/api/src:/app/src
-      - ./apps/api/prisma:/app/prisma
+      - ./:/app
 
 volumes:
   postgres_data:

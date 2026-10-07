@@ -103,7 +103,8 @@ model Service {
   category    ServiceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   name        String
   description String?
-  basePrice   Float?
+  basePrice   Int?
+  currency    String   @default("USD")
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -128,7 +129,8 @@ model Worker {
   equipment             String[]
   isOnline              Boolean           @default(false)
   serviceRadius         Int               @default(20)
-  minimumCallOutFee     Float?
+  minimumCallOutFee     Int?
+  currency              String            @default("USD")
   activationStatus      ActivationStatus  @default(PENDING_REVIEW)
   idVerifiedStatus      VerificationStatus @default(NONE)
   backgroundCheckStatus VerificationStatus @default(NONE)
@@ -168,7 +170,8 @@ model JobRequest {
   requestedDate     String?
   assignedWorkerId  String?
   assignedWorker    Worker?     @relation(fields: [assignedWorkerId], references: [id])
-  paymentAmount   Float?
+  paymentAmount   Int?
+  currency        String      @default("USD")
   paymentDate     DateTime?
   isEmergency       Boolean     @default(false)
   createdAt         DateTime    @default(now())
@@ -199,7 +202,8 @@ model Quote {
   id           String      @id @default(cuid())
   jobRequestId String
   jobRequest   JobRequest  @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
-  totalAmount  Float
+  totalAmount  Int
+  currency     String      @default("USD")
   details      String?
   status       String      @default("PENDING") // PENDING, APPROVED, REJECTED
   createdAt    DateTime    @default(now())
@@ -212,7 +216,8 @@ model ChangeOrder {
   jobRequest   JobRequest  @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
   reason       String
   addedScope   String
-  revisedPrice Float
+  revisedPrice Int
+  currency     String      @default("USD")
   status       String      @default("PENDING") // PENDING, APPROVED, REJECTED
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
@@ -233,7 +238,7 @@ model Transaction {
   id           String      @id @default(cuid())
   jobRequestId String
   jobRequest   JobRequest  @relation(fields: [jobRequestId], references: [id])
-  amount       Float
+  amount       Int
   currency     String      @default("USD")
   status       String      // PENDING, COMPLETED, FAILED, REFUNDED
   stripeChargeId String?

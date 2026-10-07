@@ -166,4 +166,30 @@ export class AiService {
       return { isSafe: true }; // default to safe if AI fails
     }
   }
+
+  async transcribeAudio(audioBase64: string, mimeType: string): Promise<string> {
+    if (!this.model) return 'AI not configured.';
+    
+    const prompt = 'Please provide an exact transcription of this audio. Return ONLY the transcribed text without any conversational filler, explanation, or quotes. Ensure your response is just the transcription.';
+    
+    try {
+      const parts: any[] = [{ text: prompt }];
+      
+      // Strip any data URI prefix just in case it was passed
+      const base64Data = audioBase64.replace(/^data:audio\/\w+;base64,/, '');
+      
+      parts.push({
+        inlineData: {
+          data: base64Data,
+          mimeType: mimeType || 'audio/m4a'
+        }
+      });
+
+      const result = await this.model.generateContent(parts);
+      return result.response.text().trim();
+    } catch (error) {
+      this.logger.error('Gemini Transcription error:', error);
+      return 'Failed to transcribe audio.';
+    }
+  }
 }

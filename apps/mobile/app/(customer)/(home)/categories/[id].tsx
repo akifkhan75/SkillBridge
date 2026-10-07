@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-na
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, fontSize, fontWeight } from '../../../../src/theme';
-import { CATEGORIES } from '@skillbridge/shared';
+import { CATEGORIES } from '@fixli/shared';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

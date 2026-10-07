@@ -1,11 +1,11 @@
 import { io, Socket } from 'socket.io-client';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
-import { IChatMessage } from '@skillbridge/shared';
+import { IChatMessage } from '@fixli/shared';
 
 const API_URL = Constants.expoConfig?.extra?.apiUrl
   || process.env.EXPO_PUBLIC_API_URL
-  || 'http://localhost:3002';
+  || 'http://192.168.100.66:3002';
 
 class SocketService {
   private socket: Socket | null = null;

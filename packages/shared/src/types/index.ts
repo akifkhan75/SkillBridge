@@ -1,7 +1,14 @@
 // ============================================================
-// SkillBridge Shared Types
+// Fixli Shared Types
 // Used by both API (NestJS) and Mobile (Expo) apps
 // ============================================================
+
+// ── Common ───────────────────────────────────────────────────
+
+export interface IMoney {
+  amount: number; // Integer minor units (e.g. cents)
+  currency: string; // ISO 4217 currency code (e.g. 'USD')
+}
 
 // ── User & Auth ──────────────────────────────────────────────
 

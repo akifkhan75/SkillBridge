@@ -1,4 +1,4 @@
-# Prolivo — AI Agent Engineering Rules
+# Fixli — AI Agent Engineering Rules
 
 ## Never
 - hardcode secrets

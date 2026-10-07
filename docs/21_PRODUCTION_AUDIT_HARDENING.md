@@ -1,7 +1,7 @@
-# Prolivo — Production Audit, UX Quality & Hardening Specification
+# Fixli — Production Audit, UX Quality & Hardening Specification
 
 **Document Type:** Engineering Audit + Production Hardening Standard  
-**Product:** Prolivo  
+**Product:** Fixli  
 **Audience:** Antigravity / Gemini Pro, senior engineers, QA, security, DevOps, product/design  
 **Status:** Mandatory before production launch
 
@@ -9,7 +9,7 @@
 
 # 1. Purpose
 
-This document defines the complete audit and hardening process for Prolivo.
+This document defines the complete audit and hardening process for Fixli.
 
 The objective is not merely to make the application compile or pass basic tests.
 
@@ -26,7 +26,7 @@ The objective is to make the application:
 - production-safe
 - maintainable
 - scalable
-- consistent with the Prolivo brand
+- consistent with the Fixli brand
 
 The audit must inspect the **actual implementation**, not assume that documentation or intended architecture is already implemented.
 
@@ -1036,7 +1036,7 @@ Verify:
 
 ## Design objective
 
-Prolivo should feel:
+Fixli should feel:
 
 - premium
 - calm
@@ -1062,7 +1062,7 @@ The interface should feel like:
 
 **Apple simplicity + Uber clarity + Airbnb trust + modern fintech polish**
 
-But Prolivo must have its own visual identity.
+But Fixli must have its own visual identity.
 
 ---
 
@@ -1268,7 +1268,7 @@ Minimum touch target should be comfortably usable.
 
 # 13. LOW DIGITAL LITERACY UX
 
-This is especially important for Prolivo's global strategy.
+This is especially important for Fixli's global strategy.
 
 Use:
 
@@ -1952,7 +1952,7 @@ Use this prompt after the application has been implemented.
 
 ---
 
-You are now the **Principal Engineer, Security Engineer, Performance Engineer, QA Lead and Senior Mobile UX Reviewer** for Prolivo.
+You are now the **Principal Engineer, Security Engineer, Performance Engineer, QA Lead and Senior Mobile UX Reviewer** for Fixli.
 
 Do not assume the application is production-ready.
 
@@ -2197,7 +2197,7 @@ unless the evidence supports it.
 
 # 33. Final Definition of Production Ready
 
-Prolivo is production-ready only when:
+Fixli is production-ready only when:
 
 - security is tested
 - authentication is hardened

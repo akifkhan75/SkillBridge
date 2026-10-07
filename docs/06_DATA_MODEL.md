@@ -1,4 +1,4 @@
-# Prolivo — PostgreSQL/PostGIS Data Model
+# Fixli — PostgreSQL/PostGIS Data Model
 
 ## Core entities
 

@@ -1,4 +1,4 @@
-# Prolivo — Analytics Specification
+# Fixli — Analytics Specification
 
 ## Core funnel
 

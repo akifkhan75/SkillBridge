@@ -1,20 +1,12 @@
 import React from 'react';
-import { View, Text, SafeAreaView, StyleSheet, TouchableOpacity } from 'react-native';
-import { DrawerActions } from '@react-navigation/native';
-import { useNavigation } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { View, Text, SafeAreaView, StyleSheet } from 'react-native';
 
 const SCREEN_TITLE = 'Messages';
 
 export default function Screen() {
-  const navigation = useNavigation();
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.dispatch(DrawerActions.openDrawer())} style={styles.menuButton}>
-          <Ionicons name="menu" size={24} color="#F1F5F9" />
-        </TouchableOpacity>
         <Text style={styles.title}>{SCREEN_TITLE}</Text>
       </View>
       <View style={styles.content}>

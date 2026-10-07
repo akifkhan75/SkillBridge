@@ -12,7 +12,7 @@ import customerFlowReducer, {
   setFilterSkill,
   setServiceFormVisibility,
 } from '../store/customerFlowSlice';
-import { ICategoryDefinition, ISubCategory, JobCategory } from '@skillbridge/shared';
+import { ICategoryDefinition, ISubCategory, JobCategory } from '@fixli/shared';
 
 describe('customerFlowSlice', () => {
   const initialState = {

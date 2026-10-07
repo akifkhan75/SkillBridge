@@ -1,5 +1,5 @@
 // ============================================================
-// SkillBridge i18n System
+// Fixli i18n System
 // Supports English, Arabic (RTL), and Urdu (RTL)
 // ============================================================
 
@@ -10,7 +10,7 @@ export type SupportedLocale = 'en' | 'ar' | 'ur';
 // Simplified translations — import full translation files for production
 const translations: Record<SupportedLocale, Record<string, string>> = {
   en: {
-    'app.name': 'SkillBridge',
+    'app.name': 'Triply',
     'app.loadingLocation': 'Loading...',
     'nav.home': 'Home',
     'nav.bookings': 'Bookings',
@@ -30,6 +30,11 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'home.greeting': 'Hello,',
     'home.search': 'Describe what you need help with...',
     'home.services': 'Services',
+    'home.categories': 'Categories',
+    'home.sos.label': 'SOS Emergency Button',
+    'home.notif.label': 'Notifications',
+    'home.category.other': 'Not sure? Show us',
+    'home.search.label': 'Search for a service',
     'home.aiHero.title': 'AI-Powered Matching',
     'home.aiHero.subtitle': 'Describe your problem and we\'ll find the perfect professional',
     'worker.dashboard': 'Dashboard',
@@ -49,7 +54,7 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'common.back': 'Back',
   },
   ar: {
-    'app.name': 'سكيل بريدج',
+    'app.name': 'تريبلي',
     'app.loadingLocation': 'جاري التحميل...',
     'nav.home': 'الرئيسية',
     'nav.bookings': 'الحجوزات',
@@ -69,13 +74,18 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'home.greeting': 'مرحباً,',
     'home.search': 'صف ما تحتاج مساعدة به...',
     'home.services': 'الخدمات',
+    'home.categories': 'الفئات',
+    'home.sos.label': 'زر طوارئ SOS',
+    'home.notif.label': 'الإشعارات',
+    'home.category.other': 'غير متأكد؟ أرنا',
+    'home.search.label': 'ابحث عن خدمة',
     'common.logout': 'تسجيل الخروج',
     'common.cancel': 'إلغاء',
     'common.save': 'حفظ',
     'common.back': 'رجوع',
   },
   ur: {
-    'app.name': 'سکل برج',
+    'app.name': 'ٹرپلی',
     'app.loadingLocation': 'لوڈ ہو رہا ہے...',
     'nav.home': 'ہوم',
     'nav.bookings': 'بکنگز',
@@ -95,6 +105,11 @@ const translations: Record<SupportedLocale, Record<string, string>> = {
     'home.greeting': 'ہیلو,',
     'home.search': 'بتائیں آپ کو کس چیز میں مدد چاہیے...',
     'home.services': 'خدمات',
+    'home.categories': 'اقسام',
+    'home.sos.label': 'ہنگامی ایس او ایس بٹن',
+    'home.notif.label': 'اطلاعات',
+    'home.category.other': 'یقین نہیں؟ ہمیں دکھائیں',
+    'home.search.label': 'سروس تلاش کریں',
     'common.logout': 'لاگ آؤٹ',
     'common.cancel': 'منسوخ',
     'common.save': 'محفوظ',

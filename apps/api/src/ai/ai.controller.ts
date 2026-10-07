@@ -31,4 +31,14 @@ export class AiController {
   ) {
     return this.aiService.generateQuoteDraft(jobDescription, workerNotes);
   }
+
+  @Post('transcribe')
+  @ApiOperation({ summary: 'Transcribe audio to text' })
+  async transcribeAudio(
+    @Body('audioBase64') audioBase64: string,
+    @Body('mimeType') mimeType: string,
+  ) {
+    const text = await this.aiService.transcribeAudio(audioBase64, mimeType);
+    return { text };
+  }
 }

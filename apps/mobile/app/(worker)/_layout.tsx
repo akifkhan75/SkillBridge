@@ -1,40 +1,83 @@
 import React from 'react';
-import { Drawer } from 'expo-router/drawer';
+import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors } from '../../src/theme';
+import { useTheme } from '../../src/hooks/useTheme';
 
 export default function WorkerLayout() {
-  const theme = colors.dark;
+  const theme = useTheme();
 
   return (
-    <Drawer
+    <Tabs
       screenOptions={{
         headerShown: false,
-        drawerStyle: {
-          backgroundColor: theme.surface,
-          width: 280,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          height: 85,
+          paddingBottom: 25,
+          paddingTop: 10,
         },
-        drawerActiveTintColor: theme.primary,
-        drawerInactiveTintColor: theme.textSecondary,
-        drawerLabelStyle: {
-          fontSize: 15,
-          fontWeight: '500',
-          marginLeft: -10,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
         },
       }}
     >
-      <Drawer.Screen name="dashboard" options={{ title: 'Dashboard', drawerIcon: ({ color, size }) => <Ionicons name="grid" size={size} color={color} /> }} />
-      <Drawer.Screen name="jobs" options={{ title: 'Job Requests', drawerIcon: ({ color, size }) => <Ionicons name="briefcase" size={size} color={color} /> }} />
-      <Drawer.Screen name="projects" options={{ title: 'Projects', drawerIcon: ({ color, size }) => <Ionicons name="folder" size={size} color={color} /> }} />
-      <Drawer.Screen name="payments" options={{ title: 'Payments', drawerIcon: ({ color, size }) => <Ionicons name="card" size={size} color={color} /> }} />
-      <Drawer.Screen name="analytics" options={{ title: 'Analytics', drawerIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} /> }} />
-      <Drawer.Screen name="schedule" options={{ title: 'Schedule', drawerIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} /> }} />
-
-      <Drawer.Screen name="chat" options={{ title: 'Chat', drawerIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} /> }} />
-      <Drawer.Screen name="profile" options={{ title: 'My Profile', drawerIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} /> }} />
-      <Drawer.Screen name="settings" options={{ title: 'Settings', drawerIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} /> }} />
-      <Drawer.Screen name="quotes" options={{ drawerItemStyle: { display: 'none' } }} />
-      <Drawer.Screen name="evidence" options={{ drawerItemStyle: { display: 'none' } }} />
-    </Drawer>
+      <Tabs.Screen
+        name="today"
+        options={{
+          title: 'Today',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sunny" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="jobs"
+        options={{
+          title: 'Jobs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="briefcase" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="earnings"
+        options={{
+          title: 'Earnings',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="wallet" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: 'Account',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: 'Chat',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="job/[id]"
+        options={{
+          href: null,
+          title: 'Job',
+        }}
+      />
+    </Tabs>
   );
 }

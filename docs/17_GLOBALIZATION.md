@@ -1,4 +1,4 @@
-# Prolivo — Globalization Strategy
+# Fixli — Globalization Strategy
 
 ## International-by-default
 

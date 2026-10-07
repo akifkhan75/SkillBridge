@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
-import type { CustomerFlowState, CustomerPage, IJobRequest, IWorker, ISubCategory, JobCategory, JobStatus } from '@skillbridge/shared';
-import type { ICategoryDefinition } from '@skillbridge/shared';
-import { MAX_MATCHED_WORKERS_TO_SHOW } from '@skillbridge/shared';
+import type { CustomerFlowState, CustomerPage, IJobRequest, IWorker, ISubCategory, JobCategory, JobStatus } from '@fixli/shared';
+import type { ICategoryDefinition } from '@fixli/shared';
+import { MAX_MATCHED_WORKERS_TO_SHOW } from '@fixli/shared';
 import * as api from '../services/api';
 import type { RootState } from './index';
 

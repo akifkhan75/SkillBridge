@@ -1,5 +1,5 @@
 // ============================================================
-// SkillBridge Shared Constants
+// Fixli Shared Constants
 // Category definitions, defaults, and configuration values
 // ============================================================
 
@@ -14,7 +14,7 @@ import {
 
 // ── App Constants ────────────────────────────────────────────
 
-export const APP_NAME = 'SkillBridge';
+export const APP_NAME = 'Fixli';
 export const MAX_MATCHED_WORKERS_TO_SHOW = 3;
 export const DEFAULT_WORKER_PROFILE_IMAGE = 'https://picsum.photos/seed/newworker/200';
 export const DEFAULT_CUSTOMER_PROFILE_IMAGE = 'https://picsum.photos/seed/newcustomer/100';

@@ -1,4 +1,4 @@
-# Prolivo — Security & Privacy
+# Fixli — Security & Privacy
 
 ## Authentication
 - short-lived access tokens
@@ -72,3 +72,8 @@ Audit:
 - rate-limit tests
 - webhook signature tests
 - mobile secure-storage tests
+
+## Pakistan legal review (pointer)
+
+Pakistan go-live requires the legal checklist in `22_UX_UI_AUDIT_AND_REDESIGN_PLAN.md` §11.7 (data protection, CNIC handling, voice/photo consent and retention, data residency, payments licensing, tax, terms) to be answered by counsel and the resulting engineering items closed. Other countries need their own review before launch.
+

@@ -1,5 +1,5 @@
 // ============================================================
-// SkillBridge Shared Validation Schemas
+// Fixli Shared Validation Schemas
 // Used for consistent validation across API and mobile
 // ============================================================
 

@@ -1,5 +1,5 @@
 import authReducer, { signupUser, loginUser, clearAuthError, logoutUser } from '../store/authSlice';
-import { IAuthResponse, IUser, AuthFlowState, UserType } from '@skillbridge/shared';
+import { IAuthResponse, IUser, AuthFlowState, UserType } from '@fixli/shared';
 
 describe('authSlice', () => {
   const initialState = {

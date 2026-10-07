@@ -1,4 +1,4 @@
-# Prolivo — Functional Feature Specification
+# Fixli — Functional Feature Specification
 
 ## A. Authentication & Identity
 - Phone OTP
@@ -175,7 +175,7 @@ Recommended differentiator:
 - photos
 - recurring maintenance
 
-This turns Prolivo from a one-time marketplace into a long-term home/service record.
+This turns Fixli from a one-time marketplace into a long-term home/service record.
 
 ## N. Recurring services
 - maintenance schedules

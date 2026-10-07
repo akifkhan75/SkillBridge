@@ -1,8 +1,8 @@
-# Prolivo — Product Requirements Document (PRD)
+# Fixli — Product Requirements Document (PRD)
 
 ## 1. Executive Summary
 
-Prolivo is a two-sided local services marketplace for customers and skilled service professionals. The initial focus is blue-collar and field services: plumbing, electrical, HVAC, appliance repair, carpentry, painting, cleaning, locksmith, moving, landscaping, installation, maintenance and related trades.
+Fixli is a two-sided local services marketplace for customers and skilled service professionals. The initial focus is blue-collar and field services: plumbing, electrical, HVAC, appliance repair, carpentry, painting, cleaning, locksmith, moving, landscaping, installation, maintenance and related trades.
 
 The original concept calls for AI-powered matching, real-time geolocation, worker verification, smart scheduling, visual assistance, emergency workflows, chat, pricing estimation, subscriptions and an operations/admin platform.
 
@@ -184,7 +184,7 @@ AI may estimate; it must not promise an exact price unless deterministic pricing
 Verification must be country-specific. Never display “background checked” unless the exact check, date and jurisdiction are known.
 
 ### Auto-dial
-The app should use OS-supported emergency calling/contact flows and localized emergency numbers. It must never falsely claim that Prolivo has contacted authorities unless confirmation is received.
+The app should use OS-supported emergency calling/contact flows and localized emergency numbers. It must never falsely claim that Fixli has contacted authorities unless confirmation is received.
 
 ### AR
 AR is a later-stage capability, not an MVP dependency.

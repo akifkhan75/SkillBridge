@@ -1,14 +1,14 @@
-# PROLIVO — Product Documentation Pack
+# FIXLI — Product Documentation Pack
 
 ## Working product name
-**Prolivo**
+**Fixli**
 
 **Tagline:** Get skilled help. Done right.
 
 > Naming note: this is a product-name recommendation, not trademark/domain clearance. A legal trademark search, app-store search, domain check, and social-handle check must be completed before committing the brand.
 
 ## Product in one sentence
-Prolivo is a global mobile-first marketplace that uses AI to understand a customer's service problem, match them with trusted local professionals, coordinate scheduling and payment, provide live job visibility, and create a verified record of the work.
+Fixli is a global mobile-first marketplace that uses AI to understand a customer's service problem, match them with trusted local professionals, coordinate scheduling and payment, provide live job visibility, and create a verified record of the work.
 
 ## Source of truth
 The original concept supplied for this project is preserved in the PRD and feature-spec documents. The original concept includes AI matching, NLP service intake, severity classification, AR assistance, smart scheduling, verified worker profiles, pricing estimation, trust/safety, live tracking, emergency workflows, visual AI, chat, worker analytics, admin controls, and Gemini-powered service analysis.

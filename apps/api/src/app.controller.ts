@@ -10,7 +10,7 @@ export class AppController {
     return {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: 'skillbridge-api',
+      service: 'fixli-api',
       version: '2.0.0',
     };
   }

@@ -1,4 +1,4 @@
-# Prolivo — User Flows
+# Fixli — User Flows
 
 ## Customer flow — standard job
 
@@ -46,7 +46,7 @@ Emergency entry
 → show local emergency contacts
 → offer call/action through supported device capability
 → optional trusted-contact notification
-→ if suitable, offer nearby verified Prolivo professional for non-life-threatening property emergency
+→ if suitable, offer nearby verified Fixli professional for non-life-threatening property emergency
 → incident tracking
 
 Do not route life-threatening situations to ordinary marketplace workers as a replacement for emergency services.

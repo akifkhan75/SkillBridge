@@ -1,13 +1,13 @@
-# Prolivo — Executive Product Summary
+# Fixli — Executive Product Summary
 
-**Recommended working name:** Prolivo  
+**Recommended working name:** Fixli  
 **Tagline:** Get skilled help. Done right.
 
 ## What it is
 An AI-native, trust-first marketplace for local skilled services.
 
 ## Core promise
-Tell us what is wrong — by typing, speaking, or showing a photo — and Prolivo helps identify the right service, match a qualified professional, coordinate the visit, protect payment, and preserve a verified service record.
+Tell us what is wrong — by typing, speaking, or showing a photo — and Fixli helps identify the right service, match a qualified professional, coordinate the visit, protect payment, and preserve a verified service record.
 
 ## What makes it different
 AI is embedded across the entire job lifecycle:
@@ -28,4 +28,4 @@ Plumbing, electrical, HVAC, appliance repair, handyman, locksmith, cleaning, pai
 - Make service history/property assets a long-term retention moat.
 
 ## Documentation
-See the complete `/Prolivo_Product_Documentation` folder and ZIP package.
+See the complete `/Fixli_Product_Documentation` folder and ZIP package.

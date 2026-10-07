@@ -49,7 +49,7 @@ export default function LiveTrackerMap({ customerLocation, workerLocation, etaSt
         {customerLocation && workerLocation && (
           <Polyline
             coordinates={[workerLocation, customerLocation]}
-            strokeColor="#4F46E5" // primary brand color
+            strokeColor="#00B4FF" // primary brand color
             strokeWidth={3}
             lineDashPattern={[5, 5]}
           />
@@ -85,7 +85,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFF',
   },
   workerMarker: {
-    backgroundColor: '#4F46E5',
+    backgroundColor: '#00B4FF',
     padding: 8,
     borderRadius: 20,
     borderWidth: 2,

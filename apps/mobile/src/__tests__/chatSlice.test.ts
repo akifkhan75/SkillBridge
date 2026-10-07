@@ -1,5 +1,5 @@
 import chatReducer, { openChatPanel, closeChatPanel, setCurrentThread, addIncomingMessage, fetchChatThreads, fetchChatMessages, sendMessage } from '../store/chatSlice';
-import { IChatMessage, IChatThread } from '@skillbridge/shared';
+import { IChatMessage, IChatThread } from '@fixli/shared';
 
 describe('chatSlice', () => {
   const initialState = {

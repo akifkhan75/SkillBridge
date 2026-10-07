@@ -1,4 +1,4 @@
-# Prolivo — Payments & Monetization
+# Fixli — Payments & Monetization
 
 ## Marketplace payment model
 
@@ -97,3 +97,13 @@ Premium can include:
 - payout reversal handling
 - chargeback tracking
 - tax calculation abstraction
+
+## Pakistan launch configuration (addendum, 2026-10-07)
+
+Scope: **Pakistan only** for now. Other countries are configured and approved separately before their go-live; they must not inherit these values.
+
+- Commission, fees, caps, tax treatment and cash-settlement limits are **per-country configuration** (see `22_UX_UI_AUDIT_AND_REDESIGN_PLAN.md` §11.8 for the schema, the cash-settlement model and the proposed placeholder numbers, all awaiting owner approval).
+- Cash on completion is allowed. Commission on cash jobs accrues to a worker's cash-commission ledger, is netted against digital payouts first, and any remainder is settled through a licensed partner rail with soft and hard limits.
+- Fixli does not hold customer funds by default; the final model depends on the payments-licensing answer in `22_...` §11.7 (L5).
+- All money is stored as integer minor units (PKR, exponent 2); ledger entries are immutable; every adjustment is a new entry.
+

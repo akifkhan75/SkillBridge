@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
-import type { IChatThread, IChatMessage } from '@skillbridge/shared';
+import type { IChatThread, IChatMessage } from '@fixli/shared';
 import * as api from '../services/api';
 import type { RootState } from './index';
 
