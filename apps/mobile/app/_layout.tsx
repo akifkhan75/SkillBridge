@@ -46,8 +46,10 @@ SplashScreen.preventAutoHideAsync();
 
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { I18nProvider } from '../src/hooks/useI18n';
+import { useTheme } from '../src/hooks/useTheme';
 
 export default function RootLayout() {
+  const theme = useTheme();
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -69,15 +71,15 @@ export default function RootLayout() {
       <Provider store={store}>
         <I18nProvider>
           <BottomSheetModalProvider>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
               <SocketHandler />
               <LocationTrackerHandler />
-              <StatusBar style="light" />
+              <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
               <Stack
                 screenOptions={{
                   headerShown: false,
                   animation: 'slide_from_right',
-                  contentStyle: { backgroundColor: '#0F172A' },
+                  contentStyle: { backgroundColor: theme.colors.background },
                 }}
               />
             </View>

@@ -9,6 +9,7 @@ import { Text } from '../../src/components/ds/Text';
 import { TextInput } from '../../src/components/ds/TextInput';
 import { Button } from '../../src/components/ds/Button';
 import { BottomSheet } from '../../src/components/ds/BottomSheet';
+import { Logo } from '../../src/components/ds/Logo';
 
 export default function OTPScreen() {
   const { phone } = useLocalSearchParams();
@@ -67,6 +68,7 @@ export default function OTPScreen() {
         </TouchableOpacity>
 
         <View style={styles.header}>
+          <Logo height={44} style={{ marginBottom: 24 }} />
           <Text variant="h1" weight="extrabold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>
             Enter the code
           </Text>

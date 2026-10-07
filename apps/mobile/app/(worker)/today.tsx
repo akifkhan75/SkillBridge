@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { Text } from '../../src/components/ds/Text';
 import { WorkerCard } from '../../src/components/ds/WorkerCard';
+import { Logo } from '../../src/components/ds/Logo';
 
 export default function WorkerTodayScreen() {
   const theme = useTheme();
@@ -13,7 +14,10 @@ export default function WorkerTodayScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
-        <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Today</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Logo variant="mark" height={36} />
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Today</Text>
+        </View>
         <TouchableOpacity style={[styles.notifButton, { backgroundColor: theme.colors.surfaceElevated }]}>
           <Ionicons name="notifications-outline" size={24} color={theme.colors.textPrimary} />
         </TouchableOpacity>

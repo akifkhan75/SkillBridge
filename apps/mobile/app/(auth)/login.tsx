@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
 import { Text } from '../../src/components/ds/Text';
 import { TextInput } from '../../src/components/ds/TextInput';
 import { Button } from '../../src/components/ds/Button';
+import { Logo } from '../../src/components/ds/Logo';
 import { useAppDispatch, useAppSelector } from '../../src/hooks/useRedux';
 import { loginUser, selectCurrentUser } from '../../src/store/authSlice';
 
@@ -35,10 +36,7 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Image 
-            source={require('../../assets/images/logo-dark.png')} 
-            style={{ width: 160, height: 60, resizeMode: 'contain', marginBottom: 32 }} 
-          />
+          <Logo height={56} style={{ marginBottom: 32 }} />
           <Text variant="h1" weight="extrabold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>
             Welcome back
           </Text>
