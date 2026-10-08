@@ -79,7 +79,8 @@
           "color": "#007BFF",
           "defaultChannel": "default"
         }
-      ]
+      ],
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

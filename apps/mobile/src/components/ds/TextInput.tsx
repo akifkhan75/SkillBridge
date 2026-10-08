@@ -95,6 +95,9 @@ export const TextInput = ({
           onBlur={handleBlur}
           value={value}
           placeholderTextColor={theme.colors.textTertiary}
+          accessible
+          accessibilityLabel={props.accessibilityLabel || label || props.placeholder}
+          accessibilityHint={error ? `Error: ${error}` : props.accessibilityHint}
           {...props}
         />
         

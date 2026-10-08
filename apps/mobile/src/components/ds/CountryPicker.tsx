@@ -28,6 +28,9 @@ export const CountryPicker = ({ visible, title, countries, selected, onSelect, o
         <FlatList
           data={countries}
           keyExtractor={(c) => c.code}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.row, { borderBottomColor: theme.colors.border }]}

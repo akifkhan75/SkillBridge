@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, ImageStyle, StyleProp } from 'react-native';
+import { ImageStyle, StyleProp } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../../hooks/useTheme';
 
 // logo-light = dark wordmark for light backgrounds, logo-dark = white wordmark for dark backgrounds

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image, ScrollView, TouchableOpacity } from 'react-native';
+import { View, ScrollView, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
 import { useTheme } from '../../hooks/useTheme';

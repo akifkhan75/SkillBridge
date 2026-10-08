@@ -115,7 +115,17 @@ class RealtimeClient {
   // ── chat & live location (used by Phase 7/8 screens) ─────────
 
   sendMessage(threadId: string, text: string) {
-    if (this.socket?.connected) this.socket.emit('sendMessage', { threadId, text });
+    if (this.socket?.connected) {
+      this.socket.emit('sendMessage', { threadId, text });
+    } else {
+      // Offline enqueue
+      import('./offline').then(({ OfflineQueueService }) => {
+        OfflineQueueService.enqueue({
+          type: 'SEND_MESSAGE',
+          payload: { threadId, text }
+        }).catch(console.error);
+      });
+    }
   }
 
   sendLocation(jobId: string, latitude: number, longitude: number, heading?: number) {

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
+import { View, StyleSheet, ViewStyle, ImageStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../../hooks/useTheme';
 import { Text } from './Text';
 

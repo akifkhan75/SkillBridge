@@ -52,7 +52,18 @@ async function send(endpoint: string, options: RequestInit, token?: string | nul
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  let response = await send(endpoint, options);
+  let response: Response;
+  try {
+    response = await send(endpoint, options);
+  } catch (err: any) {
+    if (err.message && err.message.includes('Network request failed')) {
+      if (options.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(options.method)) {
+        console.log(`[Offline] Enqueuing request: ${options.method} ${endpoint}`);
+        throw new ApiError('You are offline. Action saved.', 0, 'OFFLINE');
+      }
+    }
+    throw err;
+  }
 
   // Access tokens expire every 15 minutes: refresh once, silently, and retry.
   if (response.status === 401 && !NO_REFRESH.includes(endpoint)) {
