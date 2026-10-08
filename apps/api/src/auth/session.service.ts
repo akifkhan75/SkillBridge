@@ -2,7 +2,9 @@ import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/co
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes, timingSafeEqual } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
+import { DomainEvents } from '../common/events/domain-events';
 
 export interface DeviceInfo {
   deviceId: string;
@@ -32,7 +34,18 @@ export class SessionService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly events: DomainEvents,
   ) {}
+
+  private async revokeWhere(where: Prisma.SessionWhereInput) {
+    const rows = await this.prisma.session.findMany({ where: { ...where, revokedAt: null }, select: { id: true } });
+    if (!rows.length) return { count: 0 };
+    const ids = rows.map((r) => r.id);
+    // Revoking also forgets the device's push token: a signed-out phone must not get notifications.
+    const res = await this.prisma.session.updateMany({ where: { id: { in: ids }, revokedAt: null }, data: { revokedAt: new Date(), pushToken: null } });
+    this.events.emit('sessions.revoked', { sessionIds: ids });
+    return res;
+  }
 
   private get refreshDays(): number {
     return Number(this.config.get('REFRESH_TOKEN_DAYS') ?? 30);
@@ -48,10 +61,7 @@ export class SessionService {
 
   /** One session per (user, device): signing in again on the same device replaces the old one. */
   async create(user: { id: string; type: string }, device: DeviceInfo): Promise<TokenPair> {
-    await this.prisma.session.updateMany({
-      where: { userId: user.id, deviceId: device.deviceId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    await this.revokeWhere({ userId: user.id, deviceId: device.deviceId });
 
     const secret = this.newSecret();
     const session = await this.prisma.session.create({
@@ -87,7 +97,7 @@ export class SessionService {
       if (Date.now() - session.lastUsedAt.getTime() < 10_000) {
         throw new ConflictException({ code: 'REFRESH_IN_PROGRESS', message: 'Session is refreshing, try again' });
       }
-      await this.prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+      await this.revokeWhere({ id: session.id });
       throw new UnauthorizedException('Please sign in again');
     }
     if (!sameHash(hash, session.refreshTokenHash)) throw new UnauthorizedException('Please sign in again');
@@ -113,17 +123,19 @@ export class SessionService {
   }
 
   revoke(sessionId: string, userId: string) {
-    return this.prisma.session.updateMany({
-      where: { id: sessionId, userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
+    return this.revokeWhere({ id: sessionId, userId });
   }
 
   revokeAllExcept(userId: string, keepSessionId?: string) {
-    return this.prisma.session.updateMany({
-      where: { userId, revokedAt: null, ...(keepSessionId ? { id: { not: keepSessionId } } : {}) },
-      data: { revokedAt: new Date() },
-    });
+    return this.revokeWhere({ userId, ...(keepSessionId ? { id: { not: keepSessionId } } : {}) });
+  }
+
+  /** Register (or clear) this device's push token. A token belongs to one session only. */
+  async setPushToken(sessionId: string, userId: string, token: string | null) {
+    if (token) {
+      await this.prisma.session.updateMany({ where: { pushToken: token, id: { not: sessionId } }, data: { pushToken: null } });
+    }
+    await this.prisma.session.updateMany({ where: { id: sessionId, userId, revokedAt: null }, data: { pushToken: token, pushTokenUpdatedAt: new Date() } });
   }
 
   list(userId: string) {

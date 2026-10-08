@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
 import { MatchingService } from './matching.service';
+import { RealtimeService } from '../realtime/realtime.service';
 
 const LOCK_KEY = 4_242_001; // one sweeper at a time across all API instances
 const EVERY_MS = 60_000;
@@ -22,6 +23,7 @@ export class SweeperService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly matching: MatchingService,
     private readonly config: ConfigService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   onModuleInit() {
@@ -38,10 +40,15 @@ export class SweeperService implements OnModuleInit, OnModuleDestroy {
     const [{ locked }] = await this.prisma.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS locked`;
     if (!locked) return null;
     try {
-      const expired = await this.prisma.offer.updateMany({
+      const due = await this.prisma.offer.findMany({
         where: { status: 'PENDING', expiresAt: { lte: now } },
-        data: { status: 'EXPIRED' },
+        select: { id: true, jobRequestId: true, workerId: true, jobRequest: { select: { customerId: true } } }, take: 500,
       });
+      const expired = await this.prisma.offer.updateMany({ where: { id: { in: due.map((o) => o.id) }, status: 'PENDING' }, data: { status: 'EXPIRED' } });
+      for (const o of due) {
+        this.realtime.emitToUsers([o.jobRequest.customerId], 'offers.updated', { jobId: o.jobRequestId });
+        this.realtime.emitToUsers([o.workerId], 'feed.updated', { jobId: o.jobRequestId });
+      }
 
       const unmatched = await this.prisma.jobRequest.findMany({
         where: { status: 'MATCHES_FOUND', matchRound: 0, createdAt: { lte: new Date(now.getTime() - 30_000) } },

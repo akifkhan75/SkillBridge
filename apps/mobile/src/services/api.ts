@@ -364,3 +364,17 @@ export interface PublicWorker {
   badges: { type: VerificationType; verifiedAt: string | null; expiresAt: string | null }[];
 }
 export const getPublicWorker = (id: string) => request<PublicWorker>(`/workers/${id}`);
+
+// ── notifications ───────────────────────────────────────────
+export interface AppNotification {
+  id: string; type: string; title: string; body: string;
+  data: { url?: string; jobId?: string; [k: string]: unknown } | null;
+  readAt: string | null; createdAt: string;
+}
+export const listNotifications = (cursor?: string) =>
+  request<{ items: AppNotification[]; nextCursor: string | null }>(`/notifications${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`);
+export const getUnreadCount = () => request<{ count: number }>('/notifications/unread-count');
+export const markNotificationsRead = (ids?: string[]) =>
+  request<{ updated: number }>('/notifications/read', { method: 'POST', body: JSON.stringify(ids ? { ids } : {}) });
+export const registerPushToken = (token: string) =>
+  request<{ success: boolean }>('/notifications/push-token', { method: 'PUT', body: JSON.stringify({ token }) });

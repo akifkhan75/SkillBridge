@@ -72,6 +72,13 @@
         {
           "locationWhenInUsePermission": "Fixli uses your location to fill in your address and find professionals near you."
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#007BFF",
+          "defaultChannel": "default"
+        }
       ]
     ],
     "experiments": {

@@ -10,6 +10,9 @@ import { Screen } from '../../src/components/ds/Screen';
 import { Text } from '../../src/components/ds/Text';
 import { Button } from '../../src/components/ds/Button';
 import { Logo } from '../../src/components/ds/Logo';
+import { NotificationBell } from '../../src/components/ds/NotificationBell';
+import { useLiveReload } from '../../src/hooks/useRealtime';
+import { useNotifications } from '../../src/hooks/useNotifications';
 import { EmptyState, ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
 import { statusSentence } from '../../src/utils/jobStatus';
 import * as api from '../../src/services/api';
@@ -27,18 +30,28 @@ export default function TodayScreen() {
   const [toggleError, setToggleError] = useState<string | undefined>();
 
   useFocusEffect(useCallback(() => { me.reload(); jobs.reload(); }, [me.reload, jobs.reload]));
+  // New requests and booking changes appear without pulling to refresh.
+  useLiveReload(jobs.reload, ['feed.updated', 'job.updated']);
+  // Approval changes the whole screen (verification -> online toggle).
+  useLiveReload(me.reload, ['notification.created'], (e) => String(e.data?.type).startsWith('verification.') || e.data?.type === 'worker.activated');
+  const { askForPush } = useNotifications();
 
   const w = me.data;
   const setOnline = async (value: boolean) => {
     setToggling(true);
     setToggleError(undefined);
-    try { me.setData(await api.patchWorkerMe({ isOnline: value })); } catch (e) { setToggleError(friendlyError(e)); } finally { setToggling(false); }
+    try {
+      me.setData(await api.patchWorkerMe({ isOnline: value }));
+      // Going online is when new-job alerts start to matter: ask now, with that context.
+      if (value) void askForPush();
+    } catch (e) { setToggleError(friendlyError(e)); } finally { setToggling(false); }
   };
 
   const header = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
       <Logo variant="mark" height={36} />
-      <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Today</Text>
+      <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ flex: 1 }}>Today</Text>
+      <NotificationBell />
     </View>
   );
 

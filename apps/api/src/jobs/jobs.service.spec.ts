@@ -18,9 +18,10 @@ describe('JobsService', () => {
     $transaction: jest.fn(),
   };
   const storage: any = { consume: jest.fn(), signedUrlForKey: jest.fn().mockResolvedValue('https://signed') };
-  const gateway: any = { server: { to: jest.fn().mockReturnValue({ emit }) } };
+  const realtime: any = { emitToUsers: jest.fn() };
+  const notifications: any = { notify: jest.fn().mockResolvedValue(1) };
   const matching: any = { matchJob: jest.fn().mockResolvedValue(3) };
-  const svc = new JobsService(prisma, gateway, storage, matching);
+  const svc = new JobsService(prisma, realtime, notifications, storage, matching);
 
   const customer: AuthUser = { id: 'c1', type: 'customer' };
   const worker: AuthUser = { id: 'w1', type: 'worker' };
@@ -28,7 +29,9 @@ describe('JobsService', () => {
   beforeEach(() => {
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     storage.signedUrlForKey.mockResolvedValue('https://signed');
-    gateway.server.to.mockReturnValue({ emit });
+    tx.jobEvent.create.mockResolvedValue({ id: 'e1' });
+    notifications.notify.mockResolvedValue(1);
+    prisma.user.findUnique.mockResolvedValue({ name: 'Bilal' });
     matching.matchJob.mockResolvedValue(3);
     prisma.offer = { findUnique: jest.fn().mockResolvedValue(null) };
   });
@@ -128,7 +131,8 @@ describe('JobsService', () => {
       matching.matchJob.mockResolvedValue(3);
       await svc.create(customer, dto({ isEmergency: true, when: 'NOW' }));
       expect(matching.matchJob).toHaveBeenCalledWith('j1', 1);
-      expect(gateway.server.to).not.toHaveBeenCalledWith('role:worker');
+      expect(realtime.emitToUsers).not.toHaveBeenCalled();
+      expect(notifications.notify).not.toHaveBeenCalled();
     });
 
     it('a matching failure does not lose the request (the sweeper retries)', async () => {
@@ -177,9 +181,14 @@ describe('JobsService', () => {
 
   describe('transitions', () => {
     it('are atomic and write a timeline event', async () => {
-      prisma.jobRequest.findFirst.mockResolvedValueOnce({ status: 'AWAITING_WORKER' }).mockResolvedValue({ id: 'j1', status: 'ACCEPTED', assignedWorkerId: 'w1', customer: null, media: [], events: [] });
+      prisma.jobRequest.findFirst.mockResolvedValueOnce({ status: 'AWAITING_WORKER', title: 'Leaking tap', customerId: 'c1', assignedWorkerId: 'w1' }).mockResolvedValue({ id: 'j1', status: 'ACCEPTED', assignedWorkerId: 'w1', customer: null, media: [], events: [] });
       tx.jobRequest.updateMany.mockResolvedValue({ count: 1 });
       await svc.accept('j1', worker);
+      // Both sides' screens refresh; the customer is told, once per event.
+      expect(realtime.emitToUsers).toHaveBeenCalledWith(expect.arrayContaining(['c1', 'w1']), 'job.updated', { jobId: 'j1', status: 'ACCEPTED' });
+      expect(notifications.notify).toHaveBeenCalledWith(expect.objectContaining({
+        type: 'job.accepted', userIds: ['c1'], eventKey: 'job.accepted:e1', params: { title: 'Leaking tap', worker: 'Bilal' },
+      }));
       expect(tx.jobRequest.updateMany.mock.calls[0][0].where.status).toBe('AWAITING_WORKER');
       expect(tx.jobEvent.create.mock.calls[0][0].data).toMatchObject({ type: 'WORKER_ACCEPTED', fromStatus: 'AWAITING_WORKER', toStatus: 'ACCEPTED', actorId: 'w1' });
     });
@@ -201,8 +210,26 @@ describe('JobsService', () => {
       prisma.jobRequest.findFirst.mockResolvedValueOnce({ status: 'MATCHES_FOUND' }).mockResolvedValue({ id: 'j1', status: 'CANCELLED', customer: null, media: [], events: [] });
       tx.jobRequest.updateMany.mockResolvedValue({ count: 1 });
       await svc.cancel('j1', customer, { reason: 'FOUND_SOMEONE_ELSE', note: ' cousin fixed it ' });
+      // No worker yet and the customer cancelled: nobody else to tell.
+      expect(notifications.notify).not.toHaveBeenCalled();
       expect(tx.jobRequest.updateMany.mock.calls[0][0].data).toMatchObject({ status: 'CANCELLED', cancelReason: 'FOUND_SOMEONE_ELSE', cancelledById: 'c1' });
       expect(tx.jobEvent.create.mock.calls[0][0].data.payload).toEqual({ reason: 'FOUND_SOMEONE_ELSE', note: 'cousin fixed it', by: 'customer' });
+    });
+
+    it('a worker declining tells the customer and frees the job (previous worker still gets the live update)', async () => {
+      prisma.jobRequest.findFirst.mockResolvedValueOnce({ status: 'AWAITING_WORKER', title: 'Fan', customerId: 'c1', assignedWorkerId: 'w1' }).mockResolvedValue({ id: 'j1', status: 'MATCHES_FOUND', customer: null, media: [], events: [] });
+      tx.jobRequest.updateMany.mockResolvedValue({ count: 1 });
+      await svc.decline('j1', worker);
+      expect(realtime.emitToUsers.mock.calls[0][0]).toEqual(expect.arrayContaining(['c1', 'w1']));
+      expect(notifications.notify).toHaveBeenCalledWith(expect.objectContaining({ type: 'job.declined', userIds: ['c1'] }));
+    });
+
+    it('a worker cancelling tells the customer, not themselves', async () => {
+      prisma.jobRequest.findFirst.mockResolvedValueOnce({ status: 'ACCEPTED', title: 'Fan', customerId: 'c1', assignedWorkerId: 'w1' }).mockResolvedValue({ id: 'j1', status: 'CANCELLED', customer: null, media: [], events: [] });
+      tx.jobRequest.updateMany.mockResolvedValue({ count: 1 });
+      await svc.cancel('j1', worker, { reason: 'OTHER' });
+      expect(notifications.notify).toHaveBeenCalledTimes(1);
+      expect(notifications.notify.mock.calls[0][0]).toMatchObject({ type: 'job.cancelled', userIds: ['c1'] });
     });
 
     it('a customer cannot cancel once work has started', async () => {

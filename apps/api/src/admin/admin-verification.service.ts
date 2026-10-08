@@ -1,3 +1,4 @@
+import { NotificationService } from '../notifications/notifications.service';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { StorageService } from '../storage/storage.service';
@@ -8,6 +9,7 @@ import { VerificationDecisionDto, VerificationQueryDto } from './dto/admin.dto';
 @Injectable()
 export class AdminVerificationService {
   constructor(
+    private readonly notifications: NotificationService,
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
@@ -70,6 +72,12 @@ export class AdminVerificationService {
     const c = await this.prisma.verificationCase.findUniqueOrThrow({ where: { id }, select: { workerId: true, type: true } });
     await this.audit.record({ actorId: adminId, action: `verification.${status.toLowerCase()}`, entityType: 'VerificationCase', entityId: id, after: { workerId: c.workerId, type: c.type, reason: dto.reason } });
 
+    await this.notifications.notify({
+      type: status === 'APPROVED' ? 'verification.approved' : 'verification.needs_fix',
+      userIds: [c.workerId], eventKey: `verification:${id}`,
+      params: { doc: c.type, reason: dto.reason?.trim() || undefined },
+      data: { url: '/(worker-setup)/setup/documents' },
+    });
     await this.syncWorkerStatus(c.workerId);
     return { id, status };
   }
@@ -88,6 +96,7 @@ export class AdminVerificationService {
     if (state('ID') === 'APPROVED' && state('SELFIE') === 'APPROVED') {
       await this.prisma.worker.update({ where: { id: workerId }, data: { activationStatus: 'ACTIVE', isVerified: true } });
       await this.audit.record({ action: 'worker.activated', entityType: 'Worker', entityId: workerId });
+      await this.notifications.notify({ type: 'worker.activated', userIds: [workerId], eventKey: `worker.activated:${workerId}`, params: {}, data: { url: '/(worker)/today' } });
     } else if (['REJECTED', 'NEEDS_INFO'].some((s) => state('ID') === s || state('SELFIE') === s)) {
       await this.prisma.worker.update({ where: { id: workerId }, data: { activationStatus: 'ONBOARDING' } });
     }

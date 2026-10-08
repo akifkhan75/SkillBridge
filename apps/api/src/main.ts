@@ -5,6 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
+import { configureRealtime } from './realtime/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -49,6 +50,9 @@ async function bootstrap() {
       .build();
     SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
   }
+
+  await configureRealtime(app);
+  app.enableShutdownHooks();
 
   const port = process.env.PORT || 3002;
   await app.listen(port);

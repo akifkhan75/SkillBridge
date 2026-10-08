@@ -99,7 +99,6 @@ model User {
   password            String
   type                UserType
   profileImageUrl     String?
-  pushToken           String? // Push notification token
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
   failedLoginAttempts Int        @default(0)
@@ -108,14 +107,15 @@ model User {
   worker           Worker?
   addresses        Address[]
   jobRequests      JobRequest[]
-  sentMessages     ChatMessage[] @relation("SentMessages")
-  receivedMessages ChatMessage[] @relation("ReceivedMessages")
+  sentMessages     ChatMessage[]  @relation("SentMessages")
+  receivedMessages ChatMessage[]  @relation("ReceivedMessages")
   chatThreads      ChatThread[]
-  reviewsGiven     Review[]      @relation("ReviewsGiven")
-  reviewsReceived  Review[]      @relation("ReviewsReceived")
-  disputesRaised   Dispute[]     @relation("DisputesRaised")
+  reviewsGiven     Review[]       @relation("ReviewsGiven")
+  reviewsReceived  Review[]       @relation("ReviewsReceived")
+  disputesRaised   Dispute[]      @relation("DisputesRaised")
   properties       Property[]
   Session          Session[]
+  Notification     Notification[]
 
   @@index([email])
 }
@@ -662,6 +662,9 @@ model Session {
   lastUsedAt               DateTime  @default(now())
   expiresAt                DateTime
   revokedAt                DateTime?
+  /// Expo push token for this device; cleared on logout or when the push service says it is dead.
+  pushToken                String?
+  pushTokenUpdatedAt       DateTime?
 
   @@index([userId])
   @@index([userId, deviceId])
@@ -715,4 +718,25 @@ model Offer {
   @@unique([jobRequestId, workerId])
   @@index([jobRequestId, status])
   @@index([status, expiresAt])
+}
+
+/// What the user is told about (in-app list + push). eventKey makes every notification once-only.
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  /// e.g. { "url": "/(customer)/job/abc", "jobId": "abc" }
+  data      Json?
+  eventKey  String
+  readAt    DateTime?
+  pushedAt  DateTime?
+  pushError String?
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, eventKey])
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }

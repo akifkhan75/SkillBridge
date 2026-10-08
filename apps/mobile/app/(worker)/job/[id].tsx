@@ -15,6 +15,7 @@ import { formatMoney } from '../../../src/utils/money';
 import { router } from 'expo-router';
 import { useI18n } from '../../../src/hooks/useI18n';
 import * as api from '../../../src/services/api';
+import { useLiveReload } from '../../../src/hooks/useRealtime';
 
 export default function WorkerJobScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -25,6 +26,8 @@ export default function WorkerJobScreen() {
   const [actionError, setActionError] = useState<string | undefined>();
   const me = useApi(api.getWorkerMe);
   const [editingPrice, setEditingPrice] = useState(false);
+  // Booked by the customer, chosen someone else, cancelled: the screen follows along.
+  useLiveReload(reload, ['job.updated', 'feed.updated'], (e) => e.data?.jobId === id);
 
   if (loading && !job) return <Screen title="Job" back><LoadingState /></Screen>;
   if (error && !job) return <Screen title="Job" back><ErrorState message={error} onRetry={reload} /></Screen>;

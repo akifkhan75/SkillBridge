@@ -8,6 +8,7 @@ import { useApi, friendlyError } from '../../src/hooks/useApi';
 import { useAppSelector } from '../../src/hooks/useRedux';
 import { selectCurrentUser } from '../../src/store/authSlice';
 import { Screen } from '../../src/components/ds/Screen';
+import { useLiveReload } from '../../src/hooks/useRealtime';
 import { Text } from '../../src/components/ds/Text';
 import { Button } from '../../src/components/ds/Button';
 import { EmptyState, ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
@@ -53,6 +54,7 @@ export default function WorkerJobsScreen() {
     }));
   }, [tab, user?.id, locale]);
   useFocusEffect(useCallback(() => { list.reload(); }, [list.reload]));
+  useLiveReload(list.reload, ['feed.updated', 'job.updated']);
 
   const decline = async (id: string) => {
     setBusy(id);

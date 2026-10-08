@@ -9,7 +9,9 @@ describe('SessionService', () => {
     session: { create: jest.fn(), updateMany: jest.fn(), findUnique: jest.fn(), update: jest.fn(), findMany: jest.fn() },
   };
   const jwt = { sign: jest.fn().mockReturnValue('access.jwt') };
-  const svc = new SessionService(prisma, jwt as any, { get: () => 30 } as any);
+  const events = { emit: jest.fn(), on: jest.fn() };
+  const svc = new SessionService(prisma, jwt as any, { get: () => 30 } as any, events as any);
+  beforeEach(() => prisma.session.findMany.mockResolvedValue([]));
   afterEach(() => jest.clearAllMocks());
 
   const live = (over: any = {}) => ({
@@ -26,7 +28,7 @@ describe('SessionService', () => {
   it('stores only a hash of the refresh token and replaces any earlier session on that device', async () => {
     prisma.session.create.mockResolvedValue({ id: 's9' });
     const pair = await svc.create({ id: 'u1', type: 'customer' }, { deviceId: 'device-12345' });
-    expect(prisma.session.updateMany.mock.calls[0][0].where).toMatchObject({ userId: 'u1', deviceId: 'device-12345' });
+    expect(prisma.session.findMany.mock.calls[0][0].where).toMatchObject({ userId: 'u1', deviceId: 'device-12345' });
     const stored = prisma.session.create.mock.calls[0][0].data.refreshTokenHash;
     const secret = pair.refreshToken.split('.')[1];
     expect(stored).toBe(sha(secret));
@@ -65,8 +67,20 @@ describe('SessionService', () => {
     prisma.session.findUnique.mockResolvedValue(
       live({ previousRefreshTokenHash: sha('stolen'), lastUsedAt: new Date(Date.now() - 3600_000) }),
     );
+    prisma.session.findMany.mockResolvedValue([{ id: 's1' }]);
+    prisma.session.updateMany.mockResolvedValue({ count: 1 });
     await expect(svc.refresh('s1.stolen')).rejects.toThrow(UnauthorizedException);
-    expect(prisma.session.update.mock.calls[0][0].data.revokedAt).toBeInstanceOf(Date);
+    const revoke = prisma.session.updateMany.mock.calls.at(-1)[0];
+    expect(revoke.where.id).toEqual({ in: ['s1'] });
+    expect(revoke.data).toMatchObject({ revokedAt: expect.any(Date), pushToken: null });
+    // Its open sockets are cut too.
+    expect(events.emit).toHaveBeenCalledWith('sessions.revoked', { sessionIds: ['s1'] });
+  });
+
+  it('a push token belongs to one session only (moved, not duplicated, when another account signs in on the phone)', async () => {
+    await svc.setPushToken('s2', 'u2', 'ExponentPushToken[abc]');
+    expect(prisma.session.updateMany.mock.calls[0][0]).toEqual({ where: { pushToken: 'ExponentPushToken[abc]', id: { not: 's2' } }, data: { pushToken: null } });
+    expect(prisma.session.updateMany.mock.calls[1][0].where).toEqual({ id: 's2', userId: 'u2', revokedAt: null });
   });
 
   it('a racing double-refresh moments apart is told to retry instead of being logged out', async () => {

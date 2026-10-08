@@ -38,6 +38,10 @@ export interface AppEnv {
   REMATCH_RADIUS_FACTOR: number;
   /** Run the background sweeper (offer expiry, re-matching) in this process. */
   RUN_BACKGROUND_JOBS: boolean;
+  /** Enables multi-instance realtime (socket.io Redis adapter) and shared rate limits. */
+  REDIS_URL?: string;
+  EXPO_PUSH_URL?: string;
+  EXPO_ACCESS_TOKEN?: string;
   FRONTEND_URL?: string;
   GEMINI_API_KEY?: string;
   /** Model id; configurable so a retired model never needs a code change. */
@@ -102,6 +106,8 @@ export function validateEnv(raw: Record<string, unknown>): AppEnv {
   const rematchAfter = intIn('REMATCH_AFTER_MINUTES', 15, 1, 240);
   const rematchFactor = intIn('REMATCH_RADIUS_FACTOR', 1.5, 1, 5);
 
+  if (str('REDIS_URL') && !/^rediss?:\/\//.test(str('REDIS_URL'))) errors.push('REDIS_URL must be a redis:// or rediss:// URL');
+
   if (errors.length) {
     throw new Error(`Invalid environment configuration:\n - ${errors.join('\n - ')}`);
   }
@@ -128,6 +134,9 @@ export function validateEnv(raw: Record<string, unknown>): AppEnv {
     OFFER_TTL_MINUTES: offerTtl,
     REMATCH_AFTER_MINUTES: rematchAfter,
     REMATCH_RADIUS_FACTOR: rematchFactor,
+    REDIS_URL: str('REDIS_URL') || undefined,
+    EXPO_PUSH_URL: str('EXPO_PUSH_URL') || undefined,
+    EXPO_ACCESS_TOKEN: str('EXPO_ACCESS_TOKEN') || undefined,
     RUN_BACKGROUND_JOBS: (str('RUN_BACKGROUND_JOBS') || (nodeEnv === 'test' ? 'false' : 'true')) === 'true',
     FRONTEND_URL: str('FRONTEND_URL') || undefined,
     GEMINI_API_KEY: str('GEMINI_API_KEY') || undefined,

@@ -5,6 +5,9 @@ describe('ChatGateway (socket security)', () => {
   const jwt = { verify: jest.fn() };
   const prisma = { session: { findFirst: jest.fn() }, jobRequest: { findFirst: jest.fn() } };
   const emit = jest.fn();
+  let revoked: ((p: { sessionIds: string[] }) => void) | undefined;
+  const events = { on: jest.fn((_: string, fn: any) => { revoked = fn; return () => undefined; }) };
+  const disconnectSockets = jest.fn();
   let gateway: ChatGateway;
 
   const client = (over: any = {}) => ({
@@ -17,10 +20,10 @@ describe('ChatGateway (socket security)', () => {
   });
 
   beforeEach(() => {
-    gateway = new ChatGateway(chat as any, jwt as any, prisma as any);
-    gateway.server = { to: jest.fn().mockReturnValue({ emit }) } as any;
+    gateway = new ChatGateway(chat as any, jwt as any, prisma as any, events as any);
+    gateway.server = { to: jest.fn().mockReturnValue({ emit }), in: jest.fn().mockReturnValue({ disconnectSockets }) } as any;
   });
-  afterEach(() => jest.resetAllMocks());
+  afterEach(() => { jest.resetAllMocks(); events.on.mockImplementation((_: string, fn: any) => { revoked = fn; return () => undefined; }); });
 
   it('rejects a connection with no/invalid token (cannot just claim a userId)', async () => {
     jwt.verify.mockImplementation(() => { throw new Error('bad'); });
@@ -43,8 +46,17 @@ describe('ChatGateway (socket security)', () => {
     prisma.session.findFirst.mockResolvedValue({ user: { id: 'u1', type: 'worker' } });
     const c = client();
     await gateway.handleConnection(c as any);
-    expect(c.join).toHaveBeenCalledWith(['user:u1', 'role:worker']);
+    expect(c.join).toHaveBeenCalledWith(['user:u1', 'role:worker', 'session:s1']);
     expect(c.data.userId).toBe('u1');
+    expect(c.emit).toHaveBeenCalledWith('ready', { userId: 'u1' });
+  });
+
+  it('signing out a session drops that device\'s live connection at once', () => {
+    (gateway.server.in as jest.Mock).mockReturnValue({ disconnectSockets });
+    revoked!({ sessionIds: ['s1', 's2'] });
+    expect(gateway.server.in).toHaveBeenCalledWith('session:s1');
+    expect(gateway.server.in).toHaveBeenCalledWith('session:s2');
+    expect(disconnectSockets).toHaveBeenCalledWith(true);
   });
 
   it('delivers messages to the receiver chosen by the server', async () => {

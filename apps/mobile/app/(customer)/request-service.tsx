@@ -18,6 +18,7 @@ import { ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
 import { VoiceField, type VoiceValue } from '../../src/forms/components/VoiceField';
 import { humanize, localizedName } from '../../src/utils/catalog';
 import { ApiError } from '../../src/services/api';
+import { useNotifications } from '../../src/hooks/useNotifications';
 import * as api from '../../src/services/api';
 
 type When = 'NOW' | 'TODAY' | 'TOMORROW' | 'SCHEDULED';
@@ -138,6 +139,7 @@ export default function RequestServiceScreen() {
     if (up) set({ photos: [...d.photos, up].slice(0, MAX_PHOTOS) });
   };
 
+  const { askForPush } = useNotifications();
   const submit = async () => {
     if (!category || !address) return;
     setSubmitting(true);
@@ -158,6 +160,8 @@ export default function RequestServiceScreen() {
         analysisId: analysis?.analysisId ?? undefined,
         idempotencyKey: d.idempotencyKey,
       });
+      // Right after sending is when "we'll tell you when prices arrive" makes sense.
+      void askForPush();
       await AsyncStorage.removeItem(DRAFT_KEY).catch(() => undefined);
       router.replace(`/(customer)/job/${job.id}` as any);
     } catch (e) {

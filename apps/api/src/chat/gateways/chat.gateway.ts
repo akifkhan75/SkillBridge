@@ -14,6 +14,7 @@ import { validateSync } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { ChatService } from '../chat.service';
 import { PrismaService } from '../../database/prisma.service';
+import { DomainEvents } from '../../common/events/domain-events';
 
 class SendMessagePayload {
   @IsString() @IsNotEmpty() @MaxLength(64) threadId: string;
@@ -35,7 +36,7 @@ function parse<T extends object>(cls: new () => T, data: unknown): T | null {
 }
 
 interface AuthedSocket extends Socket {
-  data: { userId: string; userType: string };
+  data: { userId: string; userType: string; sessionId?: string };
 }
 
 /**
@@ -43,7 +44,8 @@ interface AuthedSocket extends Socket {
  * Rooms are assigned by the server: user:{id} and role:{type}.
  */
 @WebSocketGateway({
-  namespace: '/chat',
+  // One live connection per device for everything realtime (jobs, offers, notifications, chat).
+  namespace: '/rt',
   cors: {
     // Evaluated per handshake (env is not loaded when decorators run). Native apps send no Origin.
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
@@ -63,7 +65,13 @@ export class ChatGateway implements OnGatewayConnection {
     private readonly chatService: ChatService,
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
-  ) {}
+    private readonly events: DomainEvents,
+  ) {
+    // Signing out (or "sign out other devices") drops those devices' live connections at once.
+    this.events.on('sessions.revoked', ({ sessionIds }) => {
+      for (const sid of sessionIds) this.server?.in(`session:${sid}`).disconnectSockets(true);
+    });
+  }
 
   async handleConnection(client: Socket) {
     try {
@@ -85,7 +93,9 @@ export class ChatGateway implements OnGatewayConnection {
 
       client.data.userId = user.id;
       client.data.userType = user.type;
-      await client.join([`user:${user.id}`, `role:${user.type}`]);
+      client.data.sessionId = payload.sid;
+      await client.join([`user:${user.id}`, `role:${user.type}`, `session:${payload.sid}`]);
+      client.emit('ready', { userId: user.id });
     } catch {
       client.emit('error', { code: 'UNAUTHORIZED' });
       client.disconnect(true);

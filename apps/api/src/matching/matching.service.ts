@@ -2,7 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
-import { ChatGateway } from '../chat/gateways/chat.gateway';
+import { NotificationService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { availableDuring, matchScore } from './rules';
 
 interface Candidate {
@@ -28,7 +29,8 @@ export class MatchingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly gateway: ChatGateway,
+    private readonly notifications: NotificationService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   private num(key: string, def: number) {
@@ -81,8 +83,19 @@ export class MatchingService {
 
     // Minimal payload: no customer identity, no exact address (doc 05 §6).
     for (const r of ranked) {
-      this.gateway.server?.to(`user:${r.workerId}`).emit('job.request', {
-        jobId: job.id, title: job.title, area: job.area, city: job.city, distanceKm: r.distanceKm, isEmergency: job.isEmergency,
+      await this.notifications.notify({
+        type: 'job.request', userIds: [r.workerId], eventKey: `job.request:${job.id}`,
+        params: { title: job.title ?? 'Repair', area: job.area ?? job.city ?? undefined, distance: r.distanceKm ?? undefined },
+        data: { url: `/(worker)/job/${job.id}`, jobId: job.id, isEmergency: job.isEmergency },
+      });
+    }
+    if (ranked.length) this.realtime.emitToUsers(ranked.map((r) => r.workerId), 'feed.updated', { jobId: job.id });
+    this.realtime.emitToUsers([job.customerId], 'job.updated', { jobId: job.id, status: job.status });
+    if (!ranked.length && round === 2) {
+      // Honest, once: we widened the search and still nobody is free. The request stays open.
+      await this.notifications.notify({
+        type: 'job.no_one_available', userIds: [job.customerId], eventKey: `job.no_one_available:${job.id}`,
+        params: { title: job.title ?? 'your request' }, data: { url: `/(customer)/job/${job.id}`, jobId: job.id },
       });
     }
     this.logger.log(`Job ${job.id} round ${round}: ${candidates.length} in range, ${ranked.length} notified`);

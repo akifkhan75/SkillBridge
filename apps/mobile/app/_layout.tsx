@@ -7,7 +7,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { store } from '../src/store';
 import { useAppSelector, useAppDispatch } from '../src/hooks/useRedux';
 import { selectCurrentUser, selectSessionRestored, restoreSession } from '../src/store/authSlice';
-import { socketService } from '../src/services/socket';
+import { realtime } from '../src/services/socket';
+import { NotificationsProvider } from '../src/hooks/useNotifications';
 import { useWorkerLocationTracker } from '../src/hooks/useWorkerLocationTracker';
 import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTracker';
 
@@ -15,14 +16,18 @@ function SocketHandler() {
   const currentUser = useAppSelector(selectCurrentUser);
 
   useEffect(() => {
-    if (currentUser?.id) {
-      socketService.connect();
-    } else {
-      socketService.disconnect();
-    }
-  }, [currentUser]);
+    if (currentUser?.id) void realtime.connect();
+    else realtime.disconnect();
+    return () => realtime.disconnect();
+  }, [currentUser?.id]);
 
   return null;
+}
+
+/** Notifications need a signed-in user; remounts (fresh count) when the account changes. */
+function SignedIn({ children }: { children: React.ReactNode }) {
+  const user = useAppSelector(selectCurrentUser);
+  return user ? <NotificationsProvider key={user.id}>{children}</NotificationsProvider> : <>{children}</>;
 }
 
 function LocationTrackerHandler() {
@@ -99,13 +104,15 @@ export default function RootLayout() {
                 <SocketHandler />
                 <LocationTrackerHandler />
                 <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    animation: 'slide_from_right',
-                    contentStyle: { backgroundColor: theme.colors.background },
-                  }}
-                />
+                <SignedIn>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      animation: 'slide_from_right',
+                      contentStyle: { backgroundColor: theme.colors.background },
+                    }}
+                  />
+                </SignedIn>
               </SessionGate>
             </View>
           </BottomSheetModalProvider>

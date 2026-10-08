@@ -1,0 +1,22 @@
+import { Injectable } from '@nestjs/common';
+import { EventEmitter } from 'events';
+
+/** In-process events that let modules react to each other without importing each other. */
+export interface DomainEventMap {
+  /** These sessions were signed out: their live connections must drop now. */
+  'sessions.revoked': { sessionIds: string[] };
+}
+
+@Injectable()
+export class DomainEvents {
+  private readonly bus = new EventEmitter().setMaxListeners(50);
+
+  emit<K extends keyof DomainEventMap>(name: K, payload: DomainEventMap[K]) {
+    this.bus.emit(name, payload);
+  }
+
+  on<K extends keyof DomainEventMap>(name: K, handler: (payload: DomainEventMap[K]) => void) {
+    this.bus.on(name, handler);
+    return () => this.bus.off(name, handler);
+  }
+}

@@ -18,6 +18,7 @@ import { Button } from '../../../src/components/ds/Button';
 import { SOSButton } from '../../../src/components/ds/SOSButton';
 import { CategoryTile } from '../../../src/components/ds/CategoryTile';
 import { Logo } from '../../../src/components/ds/Logo';
+import { NotificationBell } from '../../../src/components/ds/NotificationBell';
 
 export default function CustomerHomeScreen() {
   const dispatch = useAppDispatch();
@@ -45,13 +46,7 @@ export default function CustomerHomeScreen() {
             </View>
           </View>
           <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
-            <TouchableOpacity 
-              style={[styles.notifButton, { backgroundColor: theme.colors.surfaceElevated }]}
-              accessibilityRole="button"
-              accessibilityLabel={t('home.notif.label')}
-            >
-              <Ionicons name="notifications-outline" size={24} color={theme.colors.textPrimary} />
-            </TouchableOpacity>
+            <NotificationBell />
           </View>
         </View>
 

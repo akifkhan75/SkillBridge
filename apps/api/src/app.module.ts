@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { DatabaseModule } from './database/database.module';
@@ -24,8 +24,10 @@ import { AppConfigController } from './config/config.controller';
 import { AdminModule } from './admin/admin.module';
 import { MatchingModule } from './matching/matching.module';
 import { OffersModule } from './offers/offers.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
 import { CommonModule } from './common/common.module';
+import { RedisThrottlerStorage } from './common/throttle/redis-throttler.storage';
 import { validateEnv } from './config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
@@ -38,16 +40,21 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
       envFilePath: ['.env', '../../.env'],
       validate: validateEnv,
     }),
-    ThrottlerModule.forRoot([{
-      ttl: 60000,
-      limit: 100,
-    }]),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (c: ConfigService) => ({
+        throttlers: [{ ttl: 60000, limit: 100 }],
+        // Several API instances must share counters; one instance can keep them in memory.
+        storage: c.get<string>('REDIS_URL') ? new RedisThrottlerStorage(c.get<string>('REDIS_URL')!) : undefined,
+      }),
+    }),
     DatabaseModule,
     CommonModule,
     StorageModule,
     AdminModule,
     MatchingModule,
     OffersModule,
+    NotificationsModule,
     AuthModule,
     UsersModule,
     WorkersModule,

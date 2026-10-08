@@ -1,6 +1,6 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../src/hooks/useTheme';
 import { useI18n } from '../../../src/hooks/useI18n';
 import { useApi, friendlyError } from '../../../src/hooks/useApi';
@@ -18,9 +18,9 @@ import { formatMoney } from '../../../src/utils/money';
 import { CANCEL_REASON_LABEL, formatWindow, statusSentence, toPhase } from '../../../src/utils/jobStatus';
 import { humanize, localizedName } from '../../../src/utils/catalog';
 import * as api from '../../../src/services/api';
+import { useLiveReload } from '../../../src/hooks/useRealtime';
 
-// Live tracking, payment and reviews arrive with their phases. Offers refresh every 15 s while
-// the request is open; Phase 6 replaces the polling with realtime events.
+// Live tracking, payment and reviews arrive with their phases. Job status and prices update live.
 export default function CustomerJobScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -35,11 +35,9 @@ export default function CustomerJobScreen() {
   const offers = useApi(() => (open ? api.listOffers(id) : Promise.resolve([])), [id, open]);
   const [confirming, setConfirming] = useState<api.OfferCard | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    if (!open) return undefined;
-    const t = setInterval(() => { offers.reload(); reload(); }, 15_000);
-    return () => clearInterval(t);
-  }, [open, offers.reload, reload]));
+  const mine = (e: { data?: { jobId?: string } }) => e.data?.jobId === id;
+  useLiveReload(reload, ['job.updated'], mine);
+  useLiveReload(offers.reload, ['offers.updated'], mine, { enabled: open, fallbackMs: 60_000 });
   useEffect(() => { if (confirming && !offers.data?.some((o) => o.id === confirming.id)) setConfirming(null); }, [offers.data, confirming]);
 
   if (loading && !job) return <Screen title="Your request" back><LoadingState /></Screen>;

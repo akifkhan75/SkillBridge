@@ -23,11 +23,17 @@ jobs:
         options: >-
           --health-cmd "pg_isready -U fixli" --health-interval 5s
           --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://fixli:ci-password@localhost:5432/fixli_ci?schema=public
       JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
       ENABLED_COUNTRIES: PK
       NODE_ENV: test
+      # Only the two-instance realtime suite uses Redis (test/realtime.e2e-spec.ts).
+      E2E_REDIS_URL: redis://localhost:6379
       EXPO_PUBLIC_API_URL: http://localhost:3002/api
       VITE_API_URL: http://localhost:3002/api
     steps:

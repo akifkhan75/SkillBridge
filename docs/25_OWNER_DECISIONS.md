@@ -2,7 +2,7 @@
 
 > Living list. Each item says what is blocked, what we do until you decide, and a recommendation.
 > When you decide, write the answer in the **Decision** column (with the date) and engineering will act on it.
-> Last updated: 2026-10-08 (after Phase 5).
+> Last updated: 2026-10-08 (after Phase 6).
 
 ## A. Open decisions
 
@@ -20,7 +20,9 @@
 | O10 | **Gemini model** | Confirm the model your API key can use. | Default `gemini-2.5-flash`, changeable with `GEMINI_MODEL`. Without a key, AI suggestions are off and safety rules still work. | Use the cheapest current Flash model; run the evaluation set (doc 08) before launch. | |
 | O11 | **Leftover files in the repo root** | `Prolivo_Product_Documentation.zip`, `scratch_login.tsx`, `screenshot.png`, `AGENTS.md` are untracked and not committed. Delete them? | Left untouched and uncommitted. | Delete the zip and scratch file; keep `AGENTS.md` only if you use it. | |
 | O12 | **Local dev database** | Your Docker Postgres stopped responding after the disk filled; `apps/api/.env` points at host `postgres` (only valid inside Docker). | Tests run against a temporary local Postgres. | Restart Docker Desktop; change `@postgres:5432` to `@localhost:5434` in `.env`; then `db:migrate` and `db:seed:catalog`. | |
-| O13 | **Urdu / Arabic wording** | All Urdu and Arabic text (app strings, catalogue names) is machine-drafted. | Shipped as drafts. | Native-speaker review before any user testing. | |
+| O13 | **Urdu / Arabic wording** | All Urdu and Arabic text (app strings, catalogue names, **notification texts**) is machine-drafted. | Shipped as drafts. | Native-speaker review before any user testing. | |
+| O14 | **Push notification accounts** | An Expo (EAS) project for the app (`eas init` writes its `projectId` into `app.json`), plus Firebase (Android) and an Apple Push key (iOS) uploaded with `eas credentials`. Phone push only works in a development/production build, not in Expo Go on Android. | Everything except the phone's own push works: notifications are stored, shown live in the app with a banner, listed in the Notifications screen, counted on the bell. The app skips push registration with a warning while `projectId` is missing. | Create the EAS project under the company's Expo account (not a personal one); turn on Expo "enhanced push security" and set `EXPO_ACCESS_TOKEN` on the server. | |
+| O15 | **Notification settings** | Should users be able to turn off kinds of notifications (e.g. "price received", "job started") inside the app? | Users can turn push off in the phone's settings; the in-app list always records everything. Job and safety messages always send. | Add per-kind on/off for marketing and non-essential updates only, when marketing messages exist (none today). | |
 
 ## B. Decided (for reference)
 

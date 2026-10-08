@@ -8,7 +8,9 @@ import {
 import { Prisma } from '@prisma/client';
 import { COUNTRIES, isCountryCode } from '@fixli/shared';
 import { PrismaService } from '../database/prisma.service';
-import { ChatGateway } from '../chat/gateways/chat.gateway';
+import { NotificationService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
+import { NotificationType } from '../notifications/templates';
 import { StorageService } from '../storage/storage.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
@@ -51,7 +53,8 @@ const CANCELLABLE_BY_CUSTOMER = ['CREATED', 'MATCHES_FOUND', 'AWAITING_WORKER', 
 export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly chatGateway: ChatGateway,
+    private readonly realtime: RealtimeService,
+    private readonly notifications: NotificationService,
     private readonly storage: StorageService,
     private readonly matching: MatchingService,
   ) {}
@@ -336,7 +339,7 @@ export class JobsService {
   ) {
     const job = await this.prisma.jobRequest.findFirst({
       where: { AND: [{ id }, this.visibleTo(user), opts.onlyIf] },
-      select: { status: true },
+      select: { status: true, title: true, customerId: true, assignedWorkerId: true },
     });
     if (!job) throw new NotFoundException('Job not found');
 
@@ -346,20 +349,65 @@ export class JobsService {
       throw new ConflictException('This job can no longer be cancelled here. Please contact support.');
     }
 
-    await this.prisma.$transaction(async (tx) => {
+    const eventId = await this.prisma.$transaction(async (tx) => {
       const result = await tx.jobRequest.updateMany({
         where: { AND: [{ id }, opts.onlyIf], status: from },
         data: { status: to, ...(opts.data ?? {}) },
       });
       if (result.count === 0) throw new ConflictException('This job just changed. Please refresh and try again.');
-      await tx.jobEvent.create({
+      const ev = await tx.jobEvent.create({
         data: {
           jobRequestId: id, actorId: user.id, type: opts.event.type, fromStatus: from, toStatus: to,
           payload: opts.event.payload as Prisma.InputJsonValue | undefined,
         },
+        select: { id: true },
       });
+      return ev.id;
     });
+    const workerId = opts.data && 'assignedWorkerId' in opts.data ? (opts.data.assignedWorkerId as string | null) : job.assignedWorkerId;
+    await this.announce({ id, title: job.title, customerId: job.customerId, workerId, previousWorkerId: job.assignedWorkerId }, to, opts.event.type, eventId, user);
     return this.findById(id, user);
+  }
+
+  /** Tell the other side what just happened, live and (if they're away) by push. */
+  private async announce(
+    job: { id: string; title: string | null; customerId: string; workerId: string | null; previousWorkerId: string | null },
+    to: JobStatus, eventType: string, eventId: string, actor: AuthUser,
+  ) {
+    this.realtime.emitToUsers([job.customerId, job.workerId ?? '', job.previousWorkerId ?? ''], 'job.updated', { jobId: job.id, status: to });
+    const title = job.title ?? 'Repair';
+    const workerName = async (id: string | null) =>
+      id ? (await this.prisma.user.findUnique({ where: { id }, select: { name: true } }))?.name ?? 'Your professional' : 'Your professional';
+    const toCustomer = (type: NotificationType, worker: string) => this.notifications.notify({
+      type, userIds: [job.customerId], eventKey: `${type}:${eventId}`,
+      params: { title, worker }, data: { url: `/(customer)/job/${job.id}`, jobId: job.id },
+    });
+
+    switch (eventType) {
+      case 'WORKER_REQUESTED':
+        if (job.workerId) {
+          await this.notifications.notify({
+            type: 'job.direct_request', userIds: [job.workerId], eventKey: `job.direct_request:${eventId}`,
+            params: { title }, data: { url: `/(worker)/job/${job.id}`, jobId: job.id },
+          });
+        }
+        return;
+      case 'WORKER_ACCEPTED': return void (await toCustomer('job.accepted', await workerName(job.workerId)));
+      case 'WORK_STARTED': return void (await toCustomer('job.started', await workerName(job.workerId)));
+      case 'WORK_COMPLETED': return void (await toCustomer('job.completed', await workerName(job.workerId)));
+      case 'WORKER_DECLINED': return void (await toCustomer('job.declined', await workerName(job.previousWorkerId)));
+      case 'CANCELLED': {
+        // Whoever didn't cancel hears about it.
+        const others = [job.customerId, job.workerId].filter((u): u is string => !!u && u !== actor.id);
+        for (const u of others) {
+          await this.notifications.notify({
+            type: 'job.cancelled', userIds: [u], eventKey: `job.cancelled:${eventId}`, params: { title },
+            data: { url: u === job.customerId ? `/(customer)/job/${job.id}` : `/(worker)/job/${job.id}`, jobId: job.id },
+          });
+        }
+        return;
+      }
+    }
   }
 
   private async explainFailure(id: string, user: AuthUser): Promise<never> {

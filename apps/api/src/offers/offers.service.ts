@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../database/prisma.service';
-import { ChatGateway } from '../chat/gateways/chat.gateway';
+import { NotificationService } from '../notifications/notifications.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { SubmitOfferDto } from './offer.dto';
 
 const BUSY_STATUSES = ['ACCEPTED', 'IN_PROGRESS'];
@@ -11,7 +12,8 @@ export class OffersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-    private readonly gateway: ChatGateway,
+    private readonly notifications: NotificationService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   private ttlMs() {
@@ -54,7 +56,16 @@ export class OffersService {
       });
       return o;
     });
-    this.gateway.server?.to(`user:${job.customerId}`).emit('offer.created', { jobId, offerId: offer.id });
+    this.realtime.emitToUsers([job.customerId], 'offers.updated', { jobId });
+    if (!existing || existing.status !== 'PENDING') {
+      // A first price (or a fresh one after it expired) is news; a revision just updates the list.
+      const worker = await this.prisma.user.findUnique({ where: { id: workerId }, select: { name: true } });
+      await this.notifications.notify({
+        type: 'offer.received', userIds: [job.customerId], eventKey: `offer.received:${offer.id}:${expiresAt.getTime()}`,
+        params: { worker: worker?.name ?? 'A professional', price: { minor: offer.amount, currency: offer.currency } },
+        data: { url: `/(customer)/job/${jobId}`, jobId },
+      });
+    }
     return offer;
   }
 
@@ -62,6 +73,7 @@ export class OffersService {
     const r = await this.prisma.offer.updateMany({ where: { jobRequestId: jobId, workerId, status: 'PENDING' }, data: { status: 'WITHDRAWN' } });
     if (r.count === 0) throw new NotFoundException('You have no open price on this request');
     await this.prisma.jobEvent.create({ data: { jobRequestId: jobId, actorId: workerId, type: 'OFFER_WITHDRAWN' } });
+    await this.tellCustomerOffersChanged(jobId);
     return { success: true };
   }
 
@@ -69,8 +81,14 @@ export class OffersService {
   async notInterested(workerId: string, jobId: string) {
     const r = await this.prisma.jobMatch.updateMany({ where: { jobRequestId: jobId, workerId, declinedAt: null }, data: { declinedAt: new Date() } });
     if (r.count === 0) throw new NotFoundException('Job not found');
-    await this.prisma.offer.updateMany({ where: { jobRequestId: jobId, workerId, status: 'PENDING' }, data: { status: 'WITHDRAWN' } });
+    const w = await this.prisma.offer.updateMany({ where: { jobRequestId: jobId, workerId, status: 'PENDING' }, data: { status: 'WITHDRAWN' } });
+    if (w.count) await this.tellCustomerOffersChanged(jobId);
     return { success: true };
+  }
+
+  private async tellCustomerOffersChanged(jobId: string) {
+    const job = await this.prisma.jobRequest.findUnique({ where: { id: jobId }, select: { customerId: true } });
+    if (job) this.realtime.emitToUsers([job.customerId], 'offers.updated', { jobId });
   }
 
   /** Open requests sent to this worker, newest first, with their own offer if any. */
@@ -154,7 +172,7 @@ export class OffersService {
     const from = job.scheduledFrom ?? new Date();
     const to = job.scheduledTo ?? new Date(from.getTime() + 2 * 3600_000);
 
-    await this.prisma.$transaction(async (tx) => {
+    const losers = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Worker" WHERE id = ${offer.workerId} FOR UPDATE`;
 
       const clash = await tx.jobRequest.findFirst({
@@ -180,16 +198,32 @@ export class OffersService {
 
       const won = await tx.offer.updateMany({ where: { id: offer.id, status: 'PENDING', expiresAt: { gt: new Date() } }, data: { status: 'ACCEPTED' } });
       if (won.count === 0) throw new ConflictException({ code: 'OFFER_NOT_AVAILABLE', message: 'This price is no longer available.' });
-      await tx.offer.updateMany({ where: { jobRequestId: job.id, id: { not: offer.id }, status: 'PENDING' }, data: { status: 'REJECTED' } });
+      const others = await tx.offer.findMany({ where: { jobRequestId: job.id, id: { not: offer.id }, status: 'PENDING' }, select: { id: true, workerId: true } });
+      await tx.offer.updateMany({ where: { id: { in: others.map((o) => o.id) } }, data: { status: 'REJECTED' } });
       await tx.jobEvent.create({
         data: {
           jobRequestId: job.id, actorId: customerId, type: 'OFFER_ACCEPTED', fromStatus: 'MATCHES_FOUND', toStatus: 'ACCEPTED',
           payload: { workerId: offer.workerId, amount: offer.amount, currency: offer.currency },
         },
       });
+      return others;
     });
 
-    this.gateway.server?.to(`user:${offer.workerId}`).emit('offer.accepted', { jobId: job.id });
+    const title = job.title ?? 'Repair';
+    await this.notifications.notify({
+      type: 'offer.accepted', userIds: [offer.workerId], eventKey: `offer.accepted:${offer.id}`,
+      params: { title }, data: { url: `/(worker)/job/${job.id}`, jobId: job.id },
+    });
+    for (const l of losers) {
+      await this.notifications.notify({
+        type: 'offer.not_chosen', userIds: [l.workerId], eventKey: `offer.not_chosen:${l.id}`,
+        params: { title }, data: { url: '/(worker)/jobs', jobId: job.id }, push: false,
+      });
+    }
+    // Everyone who was sent this request: it has left the open list.
+    const matched = await this.prisma.jobMatch.findMany({ where: { jobRequestId: job.id }, select: { workerId: true } });
+    this.realtime.emitToUsers(matched.map((m) => m.workerId), 'feed.updated', { jobId: job.id });
+    this.realtime.emitToUsers([customerId, offer.workerId], 'job.updated', { jobId: job.id, status: 'ACCEPTED' });
     return { jobId: job.id, status: 'ACCEPTED', workerId: offer.workerId, amount: offer.amount, currency: offer.currency };
   }
 }
