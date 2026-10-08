@@ -22,6 +22,8 @@ import { RecurringJobsModule } from './recurring-jobs/recurring-jobs.module';
 import { requestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AppConfigController } from './config/config.controller';
 import { AdminModule } from './admin/admin.module';
+import { MatchingModule } from './matching/matching.module';
+import { OffersModule } from './offers/offers.module';
 import { StorageModule } from './storage/storage.module';
 import { CommonModule } from './common/common.module';
 import { validateEnv } from './config/env.validation';
@@ -44,6 +46,8 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     CommonModule,
     StorageModule,
     AdminModule,
+    MatchingModule,
+    OffersModule,
     AuthModule,
     UsersModule,
     WorkersModule,

@@ -32,7 +32,15 @@ describe('Authorization (e2e)', () => {
       },
     });
     if (type === 'worker') {
-      await prisma.worker.create({ data: { id: user.id, activationStatus: 'ACTIVE', isVerified: true } });
+      // A genuinely matchable worker: approved, online, Karachi, plumbing + electrical, works every day.
+      const cats = await prisma.serviceCategory.findMany({ where: { name: { in: ['PLUMBING', 'ELECTRICAL'] } }, select: { id: true } });
+      await prisma.worker.create({
+        data: {
+          id: user.id, activationStatus: 'ACTIVE', isVerified: true, isOnline: true, serviceAreaLabel: 'Karachi',
+          services: { create: cats.map((c) => ({ categoryId: c.id })) },
+          workingHours: { create: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, startMinute: 0, endMinute: 1440 })) },
+        },
+      });
     }
     const session = await prisma.session.create({
       data: { userId: user.id, deviceId: `device-${key}`, refreshTokenHash: 'x', expiresAt: new Date(Date.now() + 3600_000) },
@@ -52,6 +60,7 @@ describe('Authorization (e2e)', () => {
     await app.listen(0); // one real listener: supertest otherwise opens a new server per request and flakes under load
     prisma = app.get(PrismaService);
     jwt = app.get(JwtService);
+    await seedCatalog(prisma as any);
 
     await makeUser('custA', 'customer');
     await makeUser('custB', 'customer');
@@ -59,7 +68,6 @@ describe('Authorization (e2e)', () => {
     await makeUser('workW2', 'worker');
     await makeUser('admin', 'admin');
 
-    await seedCatalog(prisma as any);
     plumbingId = (await prisma.serviceCategory.findUniqueOrThrow({ where: { name: 'PLUMBING' } })).id;
     electricalId = (await prisma.serviceCategory.findUniqueOrThrow({ where: { name: 'ELECTRICAL' } })).id;
     for (const who of ['custA', 'custB']) {

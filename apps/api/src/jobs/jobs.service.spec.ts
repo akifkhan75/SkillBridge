@@ -19,7 +19,8 @@ describe('JobsService', () => {
   };
   const storage: any = { consume: jest.fn(), signedUrlForKey: jest.fn().mockResolvedValue('https://signed') };
   const gateway: any = { server: { to: jest.fn().mockReturnValue({ emit }) } };
-  const svc = new JobsService(prisma, gateway, storage);
+  const matching: any = { matchJob: jest.fn().mockResolvedValue(3) };
+  const svc = new JobsService(prisma, gateway, storage, matching);
 
   const customer: AuthUser = { id: 'c1', type: 'customer' };
   const worker: AuthUser = { id: 'w1', type: 'worker' };
@@ -28,6 +29,8 @@ describe('JobsService', () => {
     prisma.$transaction.mockImplementation((fn: any) => fn(tx));
     storage.signedUrlForKey.mockResolvedValue('https://signed');
     gateway.server.to.mockReturnValue({ emit });
+    matching.matchJob.mockResolvedValue(3);
+    prisma.offer = { findUnique: jest.fn().mockResolvedValue(null) };
   });
   afterEach(() => jest.resetAllMocks());
 
@@ -120,10 +123,18 @@ describe('JobsService', () => {
       expect(tx.jobAiAnalysis.updateMany.mock.calls[0][0].where).toEqual({ id: 'an1', ownerId: 'c1', jobRequestId: null });
     });
 
-    it('emergency alerts go to workers with no customer details', async () => {
+    it('runs matching after the job is saved, and never broadcasts to every worker', async () => {
       primeCreate();
+      matching.matchJob.mockResolvedValue(3);
       await svc.create(customer, dto({ isEmergency: true, when: 'NOW' }));
-      expect(emit).toHaveBeenCalledWith('emergencyAlert', { jobId: 'j1', urgency: 'emergency' });
+      expect(matching.matchJob).toHaveBeenCalledWith('j1', 1);
+      expect(gateway.server.to).not.toHaveBeenCalledWith('role:worker');
+    });
+
+    it('a matching failure does not lose the request (the sweeper retries)', async () => {
+      primeCreate();
+      matching.matchJob.mockRejectedValue(new Error('db hiccup'));
+      await expect(svc.create(customer, dto())).resolves.toBeDefined();
     });
   });
 
@@ -201,6 +212,12 @@ describe('JobsService', () => {
   });
 
   describe('lists', () => {
+    it('workers only see open requests they were matched to (not every open job)', async () => {
+      prisma.jobRequest.findMany.mockResolvedValue([]);
+      await svc.findAll(worker);
+      expect(JSON.stringify(prisma.jobRequest.findMany.mock.calls[0][0].where)).toContain('"matches":{"some":{"workerId":"w1","declinedAt":null}}');
+    });
+
     it('workers only query assigned or open jobs, and the result is shaped per viewer', async () => {
       prisma.jobRequest.findMany.mockResolvedValue([{ id: 'j1', status: 'MATCHES_FOUND', assignedWorkerId: null, location: 'House 12', customer: { id: 'c1', name: 'Aisha Khan' } }]);
       const res: any = await svc.findAll(worker);

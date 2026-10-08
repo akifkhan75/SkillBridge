@@ -16,6 +16,8 @@ import { JobQueryDto } from './dto/job-query.dto';
 import { CancelJobDto } from './dto/cancel-job.dto';
 import { assertTransition, JobActor, JobStatus } from './job-state-machine';
 import { computeWindow, ScheduleError } from './schedule';
+import { MatchingService } from '../matching/matching.service';
+import { Logger } from '@nestjs/common';
 
 export interface AuthUser {
   id: string;
@@ -37,6 +39,7 @@ const DETAIL_INCLUDE = {
   ...BASE_INCLUDE,
   media: { select: { id: true, kind: true, storageKey: true, mime: true, transcript: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
   events: { select: { id: true, type: true, fromStatus: true, toStatus: true, actorId: true, payload: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
+  _count: { select: { matches: true } },
 } satisfies Prisma.JobRequestInclude;
 
 type JobRow = Prisma.JobRequestGetPayload<{ include: typeof BASE_INCLUDE }> & Partial<Prisma.JobRequestGetPayload<{ include: typeof DETAIL_INCLUDE }>>;
@@ -50,16 +53,20 @@ export class JobsService {
     private readonly prisma: PrismaService,
     private readonly chatGateway: ChatGateway,
     private readonly storage: StorageService,
+    private readonly matching: MatchingService,
   ) {}
+
+  private readonly logger = new Logger(JobsService.name);
 
   /** Rows this user may see at all. Every read and write goes through this. */
   private visibleTo(user: AuthUser): Prisma.JobRequestWhereInput {
     if (user.type === 'admin') return {};
     if (user.type === 'customer') return { customerId: user.id };
+    // Workers see jobs assigned to them, and open requests the matching engine sent them.
     return {
       OR: [
         { assignedWorkerId: user.id },
-        { assignedWorkerId: null, status: 'MATCHES_FOUND' },
+        { assignedWorkerId: null, status: 'MATCHES_FOUND', matches: { some: { workerId: user.id, declinedAt: null } } },
       ],
     };
   }
@@ -95,6 +102,15 @@ export class JobsService {
       );
     }
     if (events) out.events = events;
+    const counts = (job as any)._count;
+    delete out._count;
+    if (counts && !isWorker) out.notifiedCount = counts.matches;
+    if (isWorker && job.status === 'MATCHES_FOUND') {
+      out.myOffer = await this.prisma.offer.findUnique({
+        where: { jobRequestId_workerId: { jobRequestId: job.id, workerId: user.id } },
+        select: { id: true, amount: true, currency: true, etaMinutes: true, status: true, expiresAt: true },
+      });
+    }
     return out;
   }
 
@@ -203,10 +219,10 @@ export class JobsService {
       throw e;
     }
 
-    if (dto.isEmergency) {
-      // Minimal payload to workers only. Never customer identity or location.
-      this.chatGateway.server?.to('role:worker').emit('emergencyAlert', { jobId, urgency });
-    }
+    // Tell nearby eligible professionals. A failure here never loses the request: the
+    // background sweeper retries unmatched requests every minute.
+    await this.matching.matchJob(jobId, 1).catch((e) => this.logger.error(`Matching failed for ${jobId}: ${(e as Error).message}`));
+    void urgency;
     return this.findById(jobId, user);
   }
 

@@ -19,9 +19,9 @@ export default function TodayScreen() {
   const user = useAppSelector(selectCurrentUser);
   const me = useApi(api.getWorkerMe);
   const jobs = useApi(async () => {
-    const [accepted, inProgress, offered] = await Promise.all([api.listJobs('ACCEPTED'), api.listJobs('IN_PROGRESS'), api.listJobs('AWAITING_WORKER')]);
+    const [accepted, inProgress, feed] = await Promise.all([api.listJobs('ACCEPTED'), api.listJobs('IN_PROGRESS'), api.getWorkerFeed()]);
     const mine = (p: api.Page<api.JobView>) => p.items.filter((j) => j.assignedWorkerId === user?.id);
-    return { active: [...mine(inProgress), ...mine(accepted)], offered: mine(offered) };
+    return { active: [...mine(inProgress), ...mine(accepted)], offered: feed.filter((f) => !f.myOffer || f.myOffer.status !== 'PENDING') };
   }, [user?.id]);
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState<string | undefined>();
@@ -101,7 +101,7 @@ export default function TodayScreen() {
         <TouchableOpacity onPress={() => router.push('/(worker)/jobs' as any)} accessibilityRole="button" activeOpacity={0.8}
           style={{ marginTop: 20, backgroundColor: theme.colors.accent + '15', borderColor: theme.colors.accent, borderWidth: 1, borderRadius: theme.borderRadius.xl, padding: 16, flexDirection: 'row', alignItems: 'center' }}>
           <Ionicons name="notifications" size={24} color={theme.colors.accent} />
-          <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary} style={{ flex: 1, marginStart: 14 }}>{jobs.data.offered.length === 1 ? '1 customer chose you' : `${jobs.data.offered.length} customers chose you`}</Text>
+          <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary} style={{ flex: 1, marginStart: 14 }}>{jobs.data.offered.length === 1 ? '1 new request near you' : `${jobs.data.offered.length} new requests near you`}</Text>
           <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
         </TouchableOpacity>
       ) : null}

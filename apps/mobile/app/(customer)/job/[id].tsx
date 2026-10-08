@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, TouchableOpacity } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../src/hooks/useTheme';
 import { useI18n } from '../../../src/hooks/useI18n';
 import { useApi, friendlyError } from '../../../src/hooks/useApi';
@@ -13,11 +13,14 @@ import { TextInput } from '../../../src/components/ds/TextInput';
 import { StatusTimeline } from '../../../src/components/ds/StatusTimeline';
 import { JobHistory, JobMedia } from '../../../src/components/ds/JobParts';
 import { ErrorState, LoadingState } from '../../../src/components/ds/EmptyState';
+import { OfferCard } from '../../../src/components/ds/OfferCard';
+import { formatMoney } from '../../../src/utils/money';
 import { CANCEL_REASON_LABEL, formatWindow, statusSentence, toPhase } from '../../../src/utils/jobStatus';
 import { humanize, localizedName } from '../../../src/utils/catalog';
 import * as api from '../../../src/services/api';
 
-// Offers and matching (Phase 5), live tracking, payment and reviews arrive with their phases.
+// Live tracking, payment and reviews arrive with their phases. Offers refresh every 15 s while
+// the request is open; Phase 6 replaces the polling with realtime events.
 export default function CustomerJobScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -28,6 +31,16 @@ export default function CustomerJobScreen() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | undefined>();
+  const open = job?.status === 'MATCHES_FOUND';
+  const offers = useApi(() => (open ? api.listOffers(id) : Promise.resolve([])), [id, open]);
+  const [confirming, setConfirming] = useState<api.OfferCard | null>(null);
+
+  useFocusEffect(useCallback(() => {
+    if (!open) return undefined;
+    const t = setInterval(() => { offers.reload(); reload(); }, 15_000);
+    return () => clearInterval(t);
+  }, [open, offers.reload, reload]));
+  useEffect(() => { if (confirming && !offers.data?.some((o) => o.id === confirming.id)) setConfirming(null); }, [offers.data, confirming]);
 
   if (loading && !job) return <Screen title="Your request" back><LoadingState /></Screen>;
   if (error && !job) return <Screen title="Your request" back><ErrorState message={error} onRetry={reload} /></Screen>;
@@ -36,6 +49,19 @@ export default function CustomerJobScreen() {
   const worker = job.assignedWorker;
   const cancellable = ['CREATED', 'MATCHES_FOUND', 'AWAITING_WORKER', 'ACCEPTED'].includes(job.status);
   const catName = job.category ? localizedName({ name: job.category.translations?.en?.name ?? humanize(job.category.name), translations: job.category.translations }, locale) : '';
+
+  const book = async (offer: api.OfferCard) => {
+    setBusy(true);
+    setActionError(undefined);
+    try {
+      await api.acceptOffer(offer.id);
+      setConfirming(null);
+      await reload();
+    } catch (e) {
+      setActionError(friendlyError(e));
+      await offers.reload();
+    } finally { setBusy(false); }
+  };
 
   const confirmCancel = async () => {
     if (!reason[0]) { setActionError('Please choose a reason.'); return; }
@@ -57,7 +83,41 @@ export default function CustomerJobScreen() {
   return (
     <Screen title="Your request" back onRefresh={reload} refreshing={loading} footer={footer}>
       <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{statusSentence(job.status, 'customer', worker?.user.name)}</Text>
-      {job.status === 'MATCHES_FOUND' ? <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>We'll let you know as soon as a professional responds.</Text> : null}
+      {job.status === 'MATCHES_FOUND' ? (
+        <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>
+          {job.notifiedCount
+            ? `We told ${job.notifiedCount} professional${job.notifiedCount === 1 ? '' : 's'} near you. Prices usually arrive within a few minutes.`
+            : job.matchRound && job.matchRound >= 2
+              ? 'No professionals are free near you right now. Your request stays open and we will tell new professionals as they come online.'
+              : 'Looking for professionals near you…'}
+        </Text>
+      ) : null}
+      {job.agreedAmount && job.agreedCurrency && job.status !== 'CANCELLED' ? (
+        <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 6 }}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
+      ) : null}
+
+      {open ? (
+        <View style={{ marginTop: 20 }}>
+          <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>Prices from professionals</Text>
+          {confirming ? (
+            <View style={{ backgroundColor: theme.colors.primary + '12', borderRadius: theme.borderRadius.xl, padding: 16, marginBottom: 14 }} accessibilityRole="alert">
+              <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary}>
+                Book {confirming.worker.name} for {formatMoney(confirming.amount, confirming.currency, locale)}?
+              </Text>
+              <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>They will get your full address. If extra work is needed, they must ask you first.</Text>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                <View style={{ flex: 1 }}><Button title="Back" variant="secondary" disabled={busy} onPress={() => setConfirming(null)} /></View>
+                <View style={{ flex: 1 }}><Button title="Book" variant="primary" loading={busy} disabled={busy} onPress={() => book(confirming)} /></View>
+              </View>
+            </View>
+          ) : null}
+          {offers.data?.length ? offers.data.map((o) => (
+            <OfferCard key={o.id} offer={o} locale={locale} onChoose={() => setConfirming(o)} disabled={busy || !!confirming} />
+          )) : offers.loading && !offers.data ? <LoadingState message="Checking for prices…" /> : (
+            <Text variant="body" color={theme.colors.textSecondary}>No prices yet. This page updates by itself.</Text>
+          )}
+        </View>
+      ) : null}
       {job.status === 'CANCELLED' && job.cancelReason ? <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>{CANCEL_REASON_LABEL[job.cancelReason] ?? ''}</Text> : null}
 
       {job.status !== 'CANCELLED' ? (

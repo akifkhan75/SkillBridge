@@ -158,7 +158,35 @@ export interface JobView {
   assignedWorker?: { id: string; rating?: number; isVerified?: boolean; user: { id: string; name: string; profileImageUrl?: string | null } } | null;
   media?: JobMediaView[];
   events?: JobEventView[];
+  /** Booked price (integer minor units). */
+  agreedAmount?: number | null;
+  agreedCurrency?: string | null;
+  /** Customer only: how many professionals were told; matchRound 2 = search was widened. */
+  notifiedCount?: number;
+  matchRound?: number;
+  /** Worker only, while the request is open. */
+  myOffer?: MyOffer | null;
 }
+
+export interface MyOffer { id: string; amount: number; currency: string; etaMinutes: number | null; status: 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'WITHDRAWN' | 'EXPIRED'; expiresAt: string }
+
+export interface OfferCard {
+  id: string; amount: number; currency: string; etaMinutes: number | null; note: string | null; expiresAt: string;
+  worker: { id: string; name: string; profileImageUrl: string | null; rating: number; ratingCount: number; jobsCompleted: number; isVerified: boolean; experienceYears: number; distanceKm: number | null };
+}
+export const listOffers = (jobId: string) => request<OfferCard[]>(`/job-requests/${jobId}/offers`);
+export const acceptOffer = (offerId: string) => request<{ jobId: string; status: string }>(`/offers/${offerId}/accept`, { method: 'POST' });
+
+export interface FeedItem {
+  id: string; title: string | null; description: string; area: string | null; city: string | null; urgency: string | null; isEmergency: boolean;
+  whenOption: JobView['whenOption']; scheduledFrom: string | null; scheduledTo: string | null; createdAt: string;
+  category: JobView['category']; distanceKm: number | null; notifiedAt: string; myOffer: MyOffer | null;
+}
+export const getWorkerFeed = () => request<FeedItem[]>('/workers/me/requests');
+export const submitOffer = (jobId: string, amount: number, etaMinutes?: number, note?: string) =>
+  request<MyOffer>(`/job-requests/${jobId}/offers`, { method: 'POST', body: JSON.stringify({ amount, etaMinutes, note }) });
+export const withdrawOffer = (jobId: string) => request<{ success: boolean }>(`/job-requests/${jobId}/offers/mine`, { method: 'DELETE' });
+export const notInterested = (jobId: string) => request<{ success: boolean }>(`/job-requests/${jobId}/not-interested`, { method: 'POST' });
 
 export interface CreateJobInput {
   categoryId: string; issueCodes: string[]; description?: string;

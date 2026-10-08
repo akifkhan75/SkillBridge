@@ -217,6 +217,8 @@ model Worker {
 
   services      WorkerService[]
   assignedJobs  JobRequest[]
+  matches       JobMatch[]
+  offers        Offer[]
   workingHours  WorkingHours[]
   portfolio     PortfolioItem[]
   verifications VerificationCase[]
@@ -353,11 +355,21 @@ model JobRequest {
   cancelledById     String?
   /// Client-generated; the same key from the same customer never creates a second job.
   idempotencyKey    String?
+  /// Price the customer accepted (integer minor units of agreedCurrency). Binding once booked.
+  agreedAmount      Int?
+  agreedCurrency    String?
+  acceptedOfferId   String?
+  bookedAt          DateTime?
+  /// 1 = first search; 2 = widened search after nobody responded.
+  matchRound        Int              @default(0)
+  lastMatchedAt     DateTime?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   media        JobMedia[]
   events       JobEvent[]
+  matches      JobMatch[]
+  offers       Offer[]
   analyses     JobAiAnalysis[]
   chatThreads  ChatThread[]
   evidence     JobEvidence[]
@@ -653,4 +665,54 @@ model Session {
 
   @@index([userId])
   @@index([userId, deviceId])
+}
+
+/// A worker the matching engine chose to tell about a request, with why (doc 06 "matches").
+model JobMatch {
+  id           String     @id @default(cuid())
+  jobRequestId String
+  jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+  workerId     String
+  worker       Worker     @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  round        Int
+  rank         Int
+  score        Float
+  /// null when the request had no GPS and was matched by city
+  distanceKm   Float?
+  notifiedAt   DateTime   @default(now())
+  /// Worker said "not for me"
+  declinedAt   DateTime?
+
+  @@unique([jobRequestId, workerId])
+  @@index([workerId, notifiedAt])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  EXPIRED
+}
+
+/// A worker's price for a request. One live offer per worker per job; revising updates it.
+model Offer {
+  id           String      @id @default(cuid())
+  jobRequestId String
+  jobRequest   JobRequest  @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
+  workerId     String
+  worker       Worker      @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  /// Integer minor units
+  amount       Int
+  currency     String
+  etaMinutes   Int?
+  note         String?
+  status       OfferStatus @default(PENDING)
+  expiresAt    DateTime
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([jobRequestId, workerId])
+  @@index([jobRequestId, status])
+  @@index([status, expiresAt])
 }

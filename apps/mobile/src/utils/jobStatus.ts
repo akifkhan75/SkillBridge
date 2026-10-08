@@ -8,9 +8,9 @@ export function statusSentence(status: string, viewer: Viewer, other?: string | 
   const name = other ?? (viewer === 'customer' ? 'Your professional' : 'The customer');
   switch (status as JobStatusName) {
     case 'CREATED': return viewer === 'customer' ? 'Sending your request…' : 'New request';
-    case 'MATCHES_FOUND': return viewer === 'customer' ? 'Your request is open to professionals near you' : 'Open request';
+    case 'MATCHES_FOUND': return viewer === 'customer' ? 'Waiting for prices from professionals near you' : 'New request near you';
     case 'AWAITING_WORKER': return viewer === 'customer' ? `Waiting for ${name} to confirm` : 'A customer chose you. Please accept or decline.';
-    case 'ACCEPTED': return viewer === 'customer' ? `${name} accepted your job` : 'Booked. Get ready to go.';
+    case 'ACCEPTED': return viewer === 'customer' ? `${name} is booked` : 'Booked. Get ready to go.';
     case 'IN_PROGRESS': return viewer === 'customer' ? `${name} is working on it` : 'Work in progress';
     case 'COMPLETED': return 'Done';
     case 'CANCELLED': return 'Cancelled';
@@ -33,6 +33,7 @@ export function statusIcon(status: string): 'time-outline' | 'checkmark-circle' 
 export function toPhase(status: string): JobPhase {
   switch (status as JobStatusName) {
     case 'ACCEPTED': return 'BOOKED';
+    case 'AWAITING_WORKER': return 'OFFERS_READY';
     case 'IN_PROGRESS': return 'WORKING';
     case 'COMPLETED': return 'DONE';
     default: return 'REQUESTED';
@@ -52,6 +53,16 @@ export function eventSentence(type: string, viewer: Viewer, payload?: Record<str
     case 'WORKER_DECLINED': return viewer === 'customer' ? 'The professional could not take it' : 'You declined';
     case 'WORK_STARTED': return 'Work started';
     case 'WORK_COMPLETED': return 'Work finished';
+    case 'PROFESSIONALS_NOTIFIED': {
+      const n = Number(payload?.notified ?? 0);
+      return viewer === 'customer' ? `We told ${n} professional${n === 1 ? '' : 's'} near you` : 'Request sent to nearby professionals';
+    }
+    case 'NO_ONE_NEARBY_YET': return viewer === 'customer' ? 'No one was free nearby yet. We keep looking.' : 'Looking for professionals';
+    case 'STILL_NO_ONE': return viewer === 'customer' ? 'We looked further away; still no one free' : 'Search widened';
+    case 'OFFER_RECEIVED': return viewer === 'customer' ? 'You got a price' : 'A price was sent';
+    case 'OFFER_REVISED': return viewer === 'customer' ? 'A professional changed their price' : 'A price was changed';
+    case 'OFFER_WITHDRAWN': return 'A price was withdrawn';
+    case 'OFFER_ACCEPTED': return viewer === 'customer' ? 'You chose a professional' : 'The customer chose your price';
     case 'CANCELLED': {
       const by = payload?.by;
       return by === 'customer' ? (viewer === 'customer' ? 'You cancelled' : 'The customer cancelled') : by === 'worker' ? 'The professional cancelled' : 'Cancelled';

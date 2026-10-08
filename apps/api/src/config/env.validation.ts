@@ -30,6 +30,14 @@ export interface AppEnv {
   S3_ACCESS_KEY_ID?: string;
   S3_SECRET_ACCESS_KEY?: string;
   STORAGE_PUBLIC_BASE_URL?: string;
+  /** Matching & offers (owner decision O3; defaults are the recommendation). */
+  MATCH_NOTIFY_LIMIT: number;
+  MAX_OFFERS_SHOWN: number;
+  OFFER_TTL_MINUTES: number;
+  REMATCH_AFTER_MINUTES: number;
+  REMATCH_RADIUS_FACTOR: number;
+  /** Run the background sweeper (offer expiry, re-matching) in this process. */
+  RUN_BACKGROUND_JOBS: boolean;
   FRONTEND_URL?: string;
   GEMINI_API_KEY?: string;
   /** Model id; configurable so a retired model never needs a code change. */
@@ -83,6 +91,17 @@ export function validateEnv(raw: Record<string, unknown>): AppEnv {
   const publicApiUrl = (str('PUBLIC_API_URL') || `http://localhost:${port}/api`).replace(/\/+$/, '');
   if (nodeEnv === 'production' && !str('PUBLIC_API_URL')) errors.push('PUBLIC_API_URL is required in production');
 
+  const intIn = (k: string, def: number, min: number, max: number) => {
+    const v = Number(str(k) || def);
+    if (!Number.isFinite(v) || v < min || v > max) errors.push(`${k} must be between ${min} and ${max}`);
+    return v;
+  };
+  const matchNotifyLimit = intIn('MATCH_NOTIFY_LIMIT', 10, 1, 50);
+  const maxOffersShown = intIn('MAX_OFFERS_SHOWN', 3, 1, 10);
+  const offerTtl = intIn('OFFER_TTL_MINUTES', 10, 1, 240);
+  const rematchAfter = intIn('REMATCH_AFTER_MINUTES', 15, 1, 240);
+  const rematchFactor = intIn('REMATCH_RADIUS_FACTOR', 1.5, 1, 5);
+
   if (errors.length) {
     throw new Error(`Invalid environment configuration:\n - ${errors.join('\n - ')}`);
   }
@@ -104,6 +123,12 @@ export function validateEnv(raw: Record<string, unknown>): AppEnv {
     S3_ACCESS_KEY_ID: str('S3_ACCESS_KEY_ID') || undefined,
     S3_SECRET_ACCESS_KEY: str('S3_SECRET_ACCESS_KEY') || undefined,
     STORAGE_PUBLIC_BASE_URL: str('STORAGE_PUBLIC_BASE_URL') || undefined,
+    MATCH_NOTIFY_LIMIT: matchNotifyLimit,
+    MAX_OFFERS_SHOWN: maxOffersShown,
+    OFFER_TTL_MINUTES: offerTtl,
+    REMATCH_AFTER_MINUTES: rematchAfter,
+    REMATCH_RADIUS_FACTOR: rematchFactor,
+    RUN_BACKGROUND_JOBS: (str('RUN_BACKGROUND_JOBS') || (nodeEnv === 'test' ? 'false' : 'true')) === 'true',
     FRONTEND_URL: str('FRONTEND_URL') || undefined,
     GEMINI_API_KEY: str('GEMINI_API_KEY') || undefined,
     GEMINI_MODEL: str('GEMINI_MODEL') || undefined,

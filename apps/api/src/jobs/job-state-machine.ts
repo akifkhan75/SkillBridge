@@ -27,6 +27,8 @@ export const JOB_TRANSITIONS: Record<JobStatus, Rule[]> = {
   ],
   MATCHES_FOUND: [
     { to: 'AWAITING_WORKER', actors: ['customer'] },
+    // Customer accepts a worker's offer: the worker already committed by offering, so it is booked.
+    { to: 'ACCEPTED', actors: ['customer'] },
     { to: 'CANCELLED', actors: ['customer', 'admin'] },
   ],
   AWAITING_WORKER: [

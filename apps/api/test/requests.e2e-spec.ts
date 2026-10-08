@@ -50,7 +50,17 @@ describe('Request a service (e2e)', () => {
 
   async function makeUser(key: string, type: 'customer' | 'worker', worker: object = {}) {
     const u = await prisma.user.create({ data: { name: `${key} Person`, email: `${tag}-${key}@test.com`, password: await bcrypt.hash('x', 4), type, countryCode: 'PK' } });
-    if (type === 'worker') await prisma.worker.create({ data: { id: u.id, activationStatus: 'ACTIVE', ...worker } });
+    if (type === 'worker') {
+      const cat = await prisma.serviceCategory.findUniqueOrThrow({ where: { name: 'PLUMBING' } });
+      await prisma.worker.create({
+        data: {
+          id: u.id, activationStatus: 'ACTIVE', isOnline: true, serviceLat: 24.93, serviceLng: 67.10, serviceRadius: 10,
+          services: { create: [{ categoryId: cat.id }] },
+          workingHours: { create: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, startMinute: 0, endMinute: 1440 })) },
+          ...worker,
+        },
+      });
+    }
     const s = await prisma.session.create({ data: { userId: u.id, deviceId: `d-${key}`, refreshTokenHash: 'x', expiresAt: new Date(Date.now() + 3600_000) } });
     ids[key] = u.id;
     tokens[key] = jwt.sign({ sub: u.id, type, sid: s.id });
@@ -77,7 +87,7 @@ describe('Request a service (e2e)', () => {
     await makeUser('cust', 'customer');
     await makeUser('other', 'customer');
     await makeUser('work', 'worker');
-    await makeUser('work2', 'worker');
+    await makeUser('work2', 'worker', { isOnline: false });
     const a = await http().post('/api/addresses').set(as('cust')).send({ label: 'Home', streetAddress: 'House 12, Street 4', buildingDetail: 'Flat 3', area: 'Gulshan Block 13', city: 'Karachi', landmark: 'Opposite the mosque', country: 'PK', latitude: 24.92, longitude: 67.09 }).expect(201);
     addressId = a.body.id;
   });
@@ -85,6 +95,7 @@ describe('Request a service (e2e)', () => {
   afterAll(async () => {
     const userIds = Object.values(ids);
     await prisma.jobAiAnalysis.deleteMany({ where: { ownerId: { in: userIds } } });
+    await prisma.workingHours.deleteMany({ where: { workerId: { in: userIds } } });
     await prisma.jobRequest.deleteMany({ where: { customerId: { in: userIds } } });
     await prisma.upload.deleteMany({ where: { ownerId: { in: userIds } } });
     await prisma.address.deleteMany({ where: { userId: { in: userIds } } });
@@ -183,7 +194,8 @@ describe('Request a service (e2e)', () => {
       expect(new Date(res.body.scheduledFrom).getUTCHours()).toBe(12); // 17:00 Karachi
       expect(res.body.media.map((m: any) => m.kind)).toEqual(['PHOTO', 'AUDIO']);
       expect(res.body.media[1].transcript).toBe('Kitchen ka nal raat bhar tapakta hai');
-      expect(res.body.events).toEqual([expect.objectContaining({ type: 'REQUEST_SENT', toStatus: 'MATCHES_FOUND' })]);
+      expect(res.body.events.map((e: any) => e.type)).toEqual(['REQUEST_SENT', 'PROFESSIONALS_NOTIFIED']);
+      expect(res.body.notifiedCount).toBe(1); // 'work' is online nearby; 'work2' is offline
       expect(JSON.stringify(res.body)).not.toMatch(/storageKey|idempotencyKey|job_photo\//);
       const linked = await prisma.jobAiAnalysis.findUnique({ where: { id: analysis.body.analysisId } });
       expect(linked?.jobRequestId).toBe(jobId);
@@ -240,8 +252,8 @@ describe('Request a service (e2e)', () => {
     it('every step lands on the timeline in order', async () => {
       await http().post(`/api/job-requests/${jobId}/start`).set(as('work')).expect(201);
       const job = await http().get(`/api/job-requests/${jobId}`).set(as('cust')).expect(200);
-      expect(job.body.events.map((e: any) => e.type)).toEqual(['REQUEST_SENT', 'WORKER_REQUESTED', 'WORKER_ACCEPTED', 'WORK_STARTED']);
-      expect(job.body.events[2]).toMatchObject({ fromStatus: 'AWAITING_WORKER', toStatus: 'ACCEPTED', actorId: ids.work });
+      expect(job.body.events.map((e: any) => e.type)).toEqual(['REQUEST_SENT', 'PROFESSIONALS_NOTIFIED', 'WORKER_REQUESTED', 'WORKER_ACCEPTED', 'WORK_STARTED']);
+      expect(job.body.events[3]).toMatchObject({ fromStatus: 'AWAITING_WORKER', toStatus: 'ACCEPTED', actorId: ids.work });
     });
 
     it('cancelling records the reason; a started job cannot be cancelled by the customer', async () => {
@@ -251,7 +263,7 @@ describe('Request a service (e2e)', () => {
       await http().post(`/api/job-requests/${fresh.body.id}/cancel`).set(as('cust')).send({ reason: 'not-a-reason' }).expect(400);
       const c = await http().post(`/api/job-requests/${fresh.body.id}/cancel`).set(as('cust')).send({ reason: 'FOUND_SOMEONE_ELSE', note: 'neighbour helped' }).expect(201);
       expect(c.body).toMatchObject({ status: 'CANCELLED', cancelReason: 'FOUND_SOMEONE_ELSE' });
-      expect(c.body.events.at(-1)).toMatchObject({ type: 'CANCELLED', payload: { reason: 'FOUND_SOMEONE_ELSE', note: 'neighbour helped', by: 'customer' } });
+      expect(c.body.events[c.body.events.length - 1]).toMatchObject({ type: 'CANCELLED', payload: { reason: 'FOUND_SOMEONE_ELSE', note: 'neighbour helped', by: 'customer' } });
     });
 
     it("another customer can neither see nor touch it", async () => {

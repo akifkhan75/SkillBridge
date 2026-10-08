@@ -56,3 +56,11 @@ describe('formatWindow', () => {
     expect(formatWindow(null, null, 'SCHEDULED')).toBe('');
   });
 });
+
+describe('marketplace wording', () => {
+  it('tells the customer how many professionals were notified', () => {
+    expect(eventSentence('PROFESSIONALS_NOTIFIED', 'customer', { notified: 1 })).toBe('We told 1 professional near you');
+    expect(eventSentence('PROFESSIONALS_NOTIFIED', 'customer', { notified: 4 })).toBe('We told 4 professionals near you');
+    expect(eventSentence('OFFER_ACCEPTED', 'worker')).toBe('The customer chose your price');
+  });
+});
