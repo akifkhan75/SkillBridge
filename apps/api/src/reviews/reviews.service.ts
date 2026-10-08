@@ -34,8 +34,10 @@ export class ReviewsService {
           jobRequestId: job.id,
           reviewerId: user.id,
           targetId,
+          revieweeRole: targetId === job.assignedWorkerId ? 'worker' : 'customer',
           rating: dto.rating,
           comment: dto.comment,
+          tags: dto.tags ?? [],
         },
       });
 

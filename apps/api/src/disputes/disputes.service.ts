@@ -17,8 +17,11 @@ export class DisputesService {
     const dispute = await this.prisma.dispute.create({
       data: {
         jobRequestId: dto.jobRequestId,
+        category: dto.category ?? 'OTHER',
         reason: dto.reason,
         description: dto.description,
+        amountHeld: dto.amountHeld,
+        evidenceKeys: dto.evidenceKeys ?? [],
         raisedById: user.id,
       },
     });
@@ -80,7 +83,12 @@ export class DisputesService {
     if (!before) throw new NotFoundException('Dispute not found');
     const after = await this.prisma.dispute.update({
       where: { id },
-      data: { status: dto.status, resolution: dto.resolution },
+      data: { 
+        status: dto.status, 
+        resolution: dto.resolution,
+        resolvedById: dto.status === 'RESOLVED' ? adminId : undefined,
+        resolvedAt: dto.status === 'RESOLVED' ? new Date() : undefined,
+      },
     });
     await this.audit.record({
       actorId: adminId,

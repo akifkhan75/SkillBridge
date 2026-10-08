@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Param, Patch, Post, Delete } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { UpdateMeDto } from './dto/update-me.dto';
@@ -29,6 +29,27 @@ export class UsersController {
   @ApiOperation({ summary: 'Update own name, language or photo' })
   updateMe(@CurrentUser('id') id: string, @Body() dto: UpdateMeDto) {
     return this.usersService.updateMe(id, dto);
+  }
+
+  @Get('me/favorites')
+  @Roles('customer')
+  @ApiOperation({ summary: 'Get favorite workers' })
+  getFavorites(@CurrentUser('id') id: string) {
+    return this.usersService.getFavorites(id);
+  }
+
+  @Post('me/favorites/:workerId')
+  @Roles('customer')
+  @ApiOperation({ summary: 'Add a worker to favorites' })
+  addFavorite(@CurrentUser('id') id: string, @Param('workerId') workerId: string) {
+    return this.usersService.addFavorite(id, workerId);
+  }
+
+  @Delete('me/favorites/:workerId')
+  @Roles('customer')
+  @ApiOperation({ summary: 'Remove a worker from favorites' })
+  removeFavorite(@CurrentUser('id') id: string, @Param('workerId') workerId: string) {
+    return this.usersService.removeFavorite(id, workerId);
   }
 
   @Get(':id')

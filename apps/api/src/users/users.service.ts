@@ -39,4 +39,37 @@ export class UsersService {
     });
     return this.findById(id);
   }
+
+  async getFavorites(customerId: string) {
+    return this.prisma.favoriteWorker.findMany({
+      where: { customerId },
+      include: {
+        worker: {
+          select: {
+            id: true,
+            rating: true,
+            user: { select: { name: true, profileImageUrl: true } },
+            services: { include: { category: { select: { name: true } } } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async addFavorite(customerId: string, workerId: string) {
+    await this.prisma.favoriteWorker.upsert({
+      where: { customerId_workerId: { customerId, workerId } },
+      create: { customerId, workerId },
+      update: {},
+    });
+    return { success: true };
+  }
+
+  async removeFavorite(customerId: string, workerId: string) {
+    await this.prisma.favoriteWorker.deleteMany({
+      where: { customerId, workerId },
+    });
+    return { success: true };
+  }
 }

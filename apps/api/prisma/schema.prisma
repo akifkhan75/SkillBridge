@@ -119,17 +119,18 @@ model User {
   worker          Worker?
   addresses       Address[]
   jobRequests     JobRequest[]
-  sentMessages    Message[]      @relation("SentMessages")
+  sentMessages    Message[]        @relation("SentMessages")
   conversations   Conversation[]
   messageReads    MessageRead[]
-  blocksCreated   Block[]        @relation("BlocksCreated")
-  blockedBy       Block[]        @relation("BlockedBy")
-  reviewsGiven    Review[]       @relation("ReviewsGiven")
-  reviewsReceived Review[]       @relation("ReviewsReceived")
-  disputesRaised  Dispute[]      @relation("DisputesRaised")
+  blocksCreated   Block[]          @relation("BlocksCreated")
+  blockedBy       Block[]          @relation("BlockedBy")
+  reviewsGiven    Review[]         @relation("ReviewsGiven")
+  reviewsReceived Review[]         @relation("ReviewsReceived")
+  disputesRaised  Dispute[]        @relation("DisputesRaised")
   properties      Property[]
   Session         Session[]
   Notification    Notification[]
+  favoriteWorkers FavoriteWorker[]
 
   @@index([email])
 }
@@ -236,8 +237,22 @@ model Worker {
   workingHours  WorkingHours[]
   portfolio     PortfolioItem[]
   verifications VerificationCase[]
+  LedgerEntry   LedgerEntry[]
+  Settlement    Settlement[]
+  favoritedBy   FavoriteWorker[]
 
   @@index([activationStatus])
+}
+
+model FavoriteWorker {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  workerId   String
+  worker     Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, workerId])
 }
 
 model WorkingHours {
@@ -389,7 +404,8 @@ model JobRequest {
   evidence      JobEvidence[]
   quotes        Quote[]
   changeOrders  ChangeOrder[]
-  transactions  Transaction[]
+  payments      Payment[]
+  ledgers       LedgerEntry[]
   disputes      Dispute[]
   reviews       Review[]
 
@@ -488,31 +504,64 @@ model ChangeOrder {
 }
 
 model Review {
-  id           String      @id @default(cuid())
-  jobRequestId String?
-  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id], onDelete: SetNull)
+  id           String     @id @default(cuid())
+  jobRequestId String
+  jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id])
   reviewerId   String
-  reviewer     User        @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  reviewer     User       @relation("ReviewsGiven", fields: [reviewerId], references: [id])
   targetId     String
-  target       User        @relation("ReviewsReceived", fields: [targetId], references: [id])
+  target       User       @relation("ReviewsReceived", fields: [targetId], references: [id])
+  revieweeRole String     @default("worker")
   rating       Int
   comment      String?
-  createdAt    DateTime    @default(now())
+  tags         String[]
+  status       String     @default("PUBLISHED")
+  createdAt    DateTime   @default(now())
 
   @@unique([jobRequestId, reviewerId])
   @@index([targetId])
 }
 
-model Transaction {
+model Payment {
   id             String     @id @default(cuid())
   jobRequestId   String
   jobRequest     JobRequest @relation(fields: [jobRequestId], references: [id])
+  method         String // CASH, CARD, WALLET
   amount         Int
   currency       String     @default("USD")
-  status         String // PENDING, COMPLETED, FAILED, REFUNDED
-  stripeChargeId String?
+  status         String // PENDING, MARKED_BY_WORKER, CONFIRMED, DISPUTED, CAPTURED, REFUNDED
+  provider       String?
+  providerRef    String?    @unique
+  idempotencyKey String?    @unique
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
+}
+
+model LedgerEntry {
+  id           String      @id @default(cuid())
+  workerId     String
+  worker       Worker      @relation(fields: [workerId], references: [id])
+  jobRequestId String?
+  jobRequest   JobRequest? @relation(fields: [jobRequestId], references: [id])
+  type         String // COMMISSION_OWED, COMMISSION_SETTLED, PAYOUT, ADJUSTMENT, REFUND
+  amount       Int // signed minor units
+  currency     String      @default("USD")
+  balanceAfter Int
+  createdById  String?
+  createdAt    DateTime    @default(now())
+}
+
+model Settlement {
+  id        String   @id @default(cuid())
+  workerId  String
+  worker    Worker   @relation(fields: [workerId], references: [id])
+  amount    Int
+  currency  String   @default("USD")
+  rail      String
+  reference String
+  status    String // PENDING, COMPLETED, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Dispute {
@@ -521,10 +570,15 @@ model Dispute {
   jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
   raisedById   String
   raisedBy     User       @relation("DisputesRaised", fields: [raisedById], references: [id])
+  category     String     @default("OTHER")
   reason       String
   description  String?
+  amountHeld   Int?
+  evidenceKeys String[]
   status       String     @default("OPEN") // OPEN, IN_REVIEW, RESOLVED, CLOSED
   resolution   String?
+  resolvedById String?
+  resolvedAt   DateTime?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

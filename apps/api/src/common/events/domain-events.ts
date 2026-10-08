@@ -5,6 +5,7 @@ import { EventEmitter } from 'events';
 export interface DomainEventMap {
   /** These sessions were signed out: their live connections must drop now. */
   'sessions.revoked': { sessionIds: string[] };
+  'payment.recorded': { jobId: string };
 }
 
 @Injectable()

@@ -32,6 +32,7 @@ import { validateEnv } from './config/env.validation';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { PaymentsModule } from './payments/payments.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { AllExceptionsFilter } from './common/filters/http-exception.filter';
     ServiceCatalogModule,
     PropertiesModule,
     RecurringJobsModule,
+    PaymentsModule,
   ],
   controllers: [AppController, AppConfigController],
   providers: [
