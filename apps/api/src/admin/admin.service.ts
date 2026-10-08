@@ -1,0 +1,139 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../database/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
+
+@Injectable()
+export class AdminService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
+
+  // Users
+  async searchUsers(query: string) {
+    return this.prisma.user.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query } },
+          { email: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      select: { id: true, name: true, phone: true, email: true, type: true, status: true, createdAt: true },
+      take: 50,
+    });
+  }
+
+  async suspendUser(id: string, adminId: string, reason: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: { status: 'SUSPENDED' },
+    });
+
+    await this.audit.record({
+      actorId: adminId,
+      action: 'user.suspended',
+      entityType: 'User',
+      entityId: id,
+      after: { status: 'SUSPENDED', reason },
+    });
+
+    return updated;
+  }
+
+  // Jobs
+  async getJobsList(status?: string, skip = 0, take = 50) {
+    const where = status ? { status: status as any } : {};
+    return this.prisma.jobRequest.findMany({
+      where,
+      include: {
+        customer: { select: { name: true, phone: true } },
+        assignedWorker: { select: { user: { select: { name: true, phone: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+  }
+
+  async cancelJob(id: string, adminId: string, reason: string) {
+    const job = await this.prisma.jobRequest.update({
+      where: { id },
+      data: { status: 'CANCELLED' },
+    });
+
+    await this.audit.record({
+      actorId: adminId,
+      action: 'job.cancelled',
+      entityType: 'JobRequest',
+      entityId: id,
+      after: { status: 'CANCELLED', reason },
+    });
+
+    return job;
+  }
+
+  // Audits
+  async getAuditLogs(skip = 0, take = 100) {
+    return this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+  }
+
+  // Safety Incidents
+  async getIncidents(status?: string, skip = 0, take = 50) {
+    const where = status ? { status } : {};
+    return this.prisma.incident.findMany({
+      where,
+      include: {
+        reporter: { select: { name: true, type: true } },
+        jobRequest: { select: { id: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+  }
+
+  // Payments
+  async getPayments(skip = 0, take = 50) {
+    return this.prisma.payment.findMany({
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+  }
+
+  // Catalog
+  async getCatalog() {
+    return this.prisma.serviceCategory.findMany({
+      include: {
+        services: true,
+      },
+    });
+  }
+
+  // Country Config
+  async getCountryConfigs() {
+    return this.prisma.countryConfig.findMany();
+  }
+
+  // Reviews
+  async getReportedReviews(skip = 0, take = 50) {
+    return this.prisma.review.findMany({
+      where: {
+        // Simple logic for reported reviews: rating <= 2 or specific tags?
+        // Let's assume we flag reviews with rating 1 for manual moderation
+        rating: 1,
+      },
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take,
+    });
+  }
+}

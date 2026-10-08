@@ -11,3 +11,9 @@ export class VerificationDecisionDto {
   /** Required for REJECT / NEEDS_INFO: shown to the worker in plain language. */
   @IsOptional() @IsString() @MaxLength(500) reason?: string;
 }
+
+export class ActionReasonDto {
+  @IsString()
+  @MaxLength(500)
+  reason: string;
+}

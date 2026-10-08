@@ -42,12 +42,15 @@ const OWN_INCLUDE = {
   verifications: { orderBy: { createdAt: 'desc' as const } },
 } satisfies Prisma.WorkerInclude;
 
+import { DomainEvents } from '../common/events/domain-events';
+
 @Injectable()
 export class WorkersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
     private readonly audit: AuditService,
+    private readonly events: DomainEvents,
   ) {}
 
   // ── public ────────────────────────────────────────────────
@@ -201,7 +204,12 @@ export class WorkersService {
     }
     await this.prisma.$transaction(async (tx) => {
       const keys = await this.storage.consume(userId, dto.uploadIds, 'VERIFICATION', tx);
-      await tx.verificationCase.create({ data: { workerId: userId, type: dto.type, documentKeys: keys, reference: dto.reference } });
+      const verificationCase = await tx.verificationCase.create({ data: { workerId: userId, type: dto.type, documentKeys: keys, reference: dto.reference } });
+      
+      this.events.emit('admin.verification_submitted', {
+        caseId: verificationCase.id,
+        workerId: userId,
+      });
     });
     await this.audit.record({ actorId: userId, action: 'verification.submitted', entityType: 'Worker', entityId: userId, after: { type: dto.type } });
     return this.findOwn(userId);

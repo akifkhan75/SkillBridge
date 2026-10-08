@@ -3,6 +3,7 @@ import { PrismaService } from '../database/prisma.service';
 import { JobAccessService } from '../common/access/job-access.service';
 import { AuditService } from '../common/audit/audit.service';
 import { CreateDisputeDto, ResolveDisputeDto } from './dto/dispute.dto';
+import { DomainEvents } from '../common/events/domain-events';
 
 @Injectable()
 export class DisputesService {
@@ -10,6 +11,7 @@ export class DisputesService {
     private readonly prisma: PrismaService,
     private readonly access: JobAccessService,
     private readonly audit: AuditService,
+    private readonly events: DomainEvents,
   ) {}
 
   async createDispute(user: { id: string; type: string }, dto: CreateDisputeDto) {
@@ -31,6 +33,10 @@ export class DisputesService {
       entityType: 'Dispute',
       entityId: dispute.id,
       after: { jobRequestId: dto.jobRequestId, reason: dto.reason },
+    });
+    this.events.emit('admin.dispute_opened', {
+      disputeId: dispute.id,
+      jobId: dispute.jobRequestId,
     });
     return dispute;
   }

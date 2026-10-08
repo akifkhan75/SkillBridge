@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { ReportIncidentDto, AddTrustedContactDto } from './dto/safety.dto';
 import { JobsService } from '../jobs/jobs.service';
+import { DomainEvents } from '../common/events/domain-events';
 
 @Injectable()
 export class SafetyService {
@@ -10,6 +11,7 @@ export class SafetyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobsService: JobsService,
+    private readonly events: DomainEvents,
   ) {}
 
   getEmergencyNumbers(country: string = 'PK') {
@@ -33,6 +35,11 @@ export class SafetyService {
         description: dto.description,
         status: 'OPEN',
       },
+    });
+
+    this.events.emit('admin.incident_reported', {
+      incidentId: incident.id,
+      type: incident.type,
     });
 
     if (dto.severity === 'LIFE_THREATENING') {

@@ -115,6 +115,8 @@ model User {
   updatedAt           DateTime   @updatedAt
   failedLoginAttempts Int        @default(0)
   lockoutUntil        DateTime?
+  adminRoles          String[]
+  totpSecret          String?
 
   worker          Worker?
   addresses       Address[]
@@ -669,6 +671,15 @@ model TrustedContact {
   updatedAt   DateTime @updatedAt
 
   @@unique([userId, phone])
+}
+
+model CountryConfig {
+  id               String   @id @default(cuid())
+  countryCode      String   @unique
+  currency         String
+  emergencyNumbers Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 model ServicePackage {
