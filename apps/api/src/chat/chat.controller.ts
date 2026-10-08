@@ -1,44 +1,57 @@
-import { Controller, Get, Post, Body, Param, ForbiddenException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Query, ForbiddenException } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { MarkReadDto } from './dto/mark-read.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-@ApiTags('chat')
+@ApiTags('conversations')
 @ApiBearerAuth()
-@Controller('chat')
+@Controller('conversations')
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
-  @Get('threads')
-  @ApiOperation({ summary: 'Your chat threads' })
-  getMyThreads(@CurrentUser('id') userId: string) {
-    return this.chatService.getThreadsForUser(userId);
+  @Get()
+  @ApiOperation({ summary: 'Your chat conversations' })
+  @ApiQuery({ name: 'cursor', required: false })
+  getConversations(@CurrentUser('id') userId: string, @Query('cursor') cursor?: string) {
+    return this.chatService.getConversationsForUser(userId, cursor);
   }
 
-  @Get('threads/:userId')
-  @ApiOperation({ summary: 'Your chat threads (path form kept for older clients)' })
-  getThreadsByUserId(@Param('userId') userId: string, @CurrentUser('id') currentUserId: string) {
-    if (userId !== currentUserId) throw new ForbiddenException('You can only read your own threads');
-    return this.chatService.getThreadsForUser(userId);
+  @Get(':id/messages')
+  @ApiOperation({ summary: 'Messages in a conversation you belong to' })
+  @ApiQuery({ name: 'cursor', required: false })
+  @ApiQuery({ name: 'before', required: false })
+  getMessages(
+    @Param('id') id: string, 
+    @CurrentUser('id') userId: string,
+    @Query('cursor') cursor?: string,
+    @Query('before') before?: string
+  ) {
+    return this.chatService.getMessages(id, userId, cursor, before);
   }
 
-  @Get('messages/:threadId')
-  @ApiOperation({ summary: 'Messages in a thread you belong to' })
-  getMessages(@Param('threadId') threadId: string, @CurrentUser('id') userId: string) {
-    return this.chatService.getMessages(threadId, userId);
+  @Post(':id/messages')
+  @ApiOperation({ summary: 'Send a message in a conversation you belong to' })
+  sendMessage(@Param('id') id: string, @CurrentUser('id') senderId: string, @Body() dto: SendMessageDto) {
+    // Override the threadId from DTO with the path param, just to be safe
+    return this.chatService.sendMessage(senderId, { ...dto, threadId: id });
   }
 
-  @Post('messages')
-  @ApiOperation({ summary: 'Send a message in a thread you belong to' })
-  sendMessage(@CurrentUser('id') senderId: string, @Body() dto: SendMessageDto) {
-    return this.chatService.sendMessage(senderId, dto);
+  @Post(':id/read')
+  @ApiOperation({ summary: 'Mark a conversation as read for you' })
+  markRead(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.chatService.markAsRead(id, userId);
   }
 
-  @Post('mark-read')
-  @ApiOperation({ summary: 'Mark a thread as read for you' })
-  markRead(@Body() dto: MarkReadDto, @CurrentUser('id') userId: string) {
-    return this.chatService.markAsRead(dto.threadId, userId);
+  @Post(':id/block')
+  @ApiOperation({ summary: 'Block the other user in this conversation' })
+  block(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() dto: { reason?: string }) {
+    return this.chatService.blockUser(id, userId, dto.reason);
+  }
+
+  @Post(':id/report')
+  @ApiOperation({ summary: 'Report the other user in this conversation' })
+  report(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() dto: { reason: string }) {
+    return this.chatService.reportUser(id, userId, dto.reason);
   }
 }

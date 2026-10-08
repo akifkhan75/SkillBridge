@@ -7,6 +7,7 @@ describe('JobsService', () => {
     jobRequest: { create: jest.fn(), updateMany: jest.fn() },
     jobAiAnalysis: { updateMany: jest.fn() },
     jobEvent: { create: jest.fn() },
+    conversation: { findFirst: jest.fn(), create: jest.fn() },
   };
   const prisma: any = {
     jobRequest: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), updateMany: jest.fn() },

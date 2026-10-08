@@ -6,7 +6,7 @@ import { StorageService } from './storage.service';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 class CreateUploadDto {
-  @IsIn(['AVATAR', 'VERIFICATION', 'PORTFOLIO', 'JOB_PHOTO', 'JOB_AUDIO']) purpose: 'AVATAR' | 'VERIFICATION' | 'PORTFOLIO' | 'JOB_PHOTO' | 'JOB_AUDIO';
+  @IsIn(['AVATAR', 'VERIFICATION', 'PORTFOLIO', 'JOB_PHOTO', 'JOB_AUDIO', 'CHAT_PHOTO']) purpose: 'AVATAR' | 'VERIFICATION' | 'PORTFOLIO' | 'JOB_PHOTO' | 'JOB_AUDIO' | 'CHAT_PHOTO';
   @IsString() mime: string;
   @IsInt() @Min(1) @Max(20 * 1024 * 1024) size: number;
 }

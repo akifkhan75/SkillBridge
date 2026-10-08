@@ -18,7 +18,9 @@ import { DomainEvents } from '../../common/events/domain-events';
 
 class SendMessagePayload {
   @IsString() @IsNotEmpty() @MaxLength(64) threadId: string;
-  @IsString() @IsNotEmpty() @MaxLength(4000) text: string;
+  @IsOptional() @IsString() @MaxLength(4000) text?: string;
+  @IsOptional() @IsString() @MaxLength(256) imageKey?: string;
+  @IsOptional() @IsString() @MaxLength(128) clientId?: string;
 }
 class ThreadPayload {
   @IsString() @IsNotEmpty() @MaxLength(64) threadId: string;
@@ -39,15 +41,9 @@ interface AuthedSocket extends Socket {
   data: { userId: string; userType: string; sessionId?: string };
 }
 
-/**
- * Identity comes only from a verified JWT in the handshake; the client never states who it is.
- * Rooms are assigned by the server: user:{id} and role:{type}.
- */
 @WebSocketGateway({
-  // One live connection per device for everything realtime (jobs, offers, notifications, chat).
   namespace: '/rt',
   cors: {
-    // Evaluated per handshake (env is not loaded when decorators run). Native apps send no Origin.
     origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
       const allowed = (process.env.FRONTEND_URL ?? '').split(',').map((o) => o.trim()).filter(Boolean);
       cb(null, !origin || allowed.includes(origin));
@@ -67,7 +63,6 @@ export class ChatGateway implements OnGatewayConnection {
     private readonly prisma: PrismaService,
     private readonly events: DomainEvents,
   ) {
-    // Signing out (or "sign out other devices") drops those devices' live connections at once.
     this.events.on('sessions.revoked', ({ sessionIds }) => {
       for (const sid of sessionIds) this.server?.in(`session:${sid}`).disconnectSockets(true);
     });
@@ -77,7 +72,6 @@ export class ChatGateway implements OnGatewayConnection {
     try {
       const token = (client.handshake.auth?.token as string | undefined) ?? '';
       const payload = this.jwt.verify<{ sub: string; sid?: string }>(token);
-      // Must belong to a live session, so signing out / "sign out other devices" cuts sockets too.
       const session = await this.prisma.session.findFirst({
         where: {
           id: payload.sid ?? '',
@@ -108,8 +102,22 @@ export class ChatGateway implements OnGatewayConnection {
     if (!data || !client.data.userId) return { error: 'INVALID' };
 
     const message = await this.chatService.sendMessage(client.data.userId, data);
-    this.server.to(`user:${message.receiverId}`).emit('newMessage', message);
-    client.emit('messageSent', message);
+    
+    // Find conversation participants
+    const conversation = await this.prisma.conversation.findUnique({
+      where: { id: data.threadId },
+      include: { participants: { select: { id: true } } }
+    });
+
+    if (conversation) {
+      for (const p of conversation.participants) {
+        if (p.id !== client.data.userId) {
+          this.server.to(`user:${p.id}`).emit('message.created', message);
+        }
+      }
+    }
+
+    client.emit('message.created', message);
     return message;
   }
 
@@ -117,15 +125,16 @@ export class ChatGateway implements OnGatewayConnection {
   async handleTyping(@ConnectedSocket() client: AuthedSocket, @MessageBody() raw: unknown) {
     const data = parse(ThreadPayload, raw);
     if (!data || !client.data.userId) return;
-    const thread = await this.chatService.requireThread(data.threadId, client.data.userId).catch(() => null);
-    const other = thread?.participants.find((p) => p.id !== client.data.userId);
-    if (other) this.server.to(`user:${other.id}`).emit('userTyping', { threadId: data.threadId, userId: client.data.userId });
+    const conversation = await this.prisma.conversation.findFirst({
+      where: { id: data.threadId, participants: { some: { id: client.data.userId } } },
+      include: { participants: { select: { id: true } } }
+    });
+    if (conversation) {
+      const other = conversation.participants.find((p) => p.id !== client.data.userId);
+      if (other) this.server.to(`user:${other.id}`).emit('typing', { threadId: data.threadId, userId: client.data.userId });
+    }
   }
 
-  /**
-   * A worker may broadcast their position only to the customer of a job that worker is
-   * actively assigned to. The receiver is derived from the job, never trusted from the client.
-   */
   @SubscribeMessage('locationUpdate')
   async handleLocationUpdate(@ConnectedSocket() client: AuthedSocket, @MessageBody() raw: unknown) {
     const data = parse(LocationPayload, raw);

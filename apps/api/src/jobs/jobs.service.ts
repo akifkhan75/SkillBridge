@@ -362,6 +362,41 @@ export class JobsService {
         },
         select: { id: true },
       });
+
+      if (to === 'ACCEPTED' || to === 'IN_PROGRESS' || to === 'COMPLETED') {
+        const actualWorkerId = opts.data && 'assignedWorkerId' in opts.data ? (opts.data.assignedWorkerId as string | null) : job.assignedWorkerId;
+        if (job.customerId && actualWorkerId) {
+          let conv = await tx.conversation.findFirst({ where: { jobRequestId: id } });
+          if (!conv) {
+            conv = await tx.conversation.create({
+              data: {
+                jobRequestId: id,
+                participants: { connect: [{ id: job.customerId }, { id: actualWorkerId }] }
+              }
+            });
+          }
+          
+          let sysMsg = '';
+          if (opts.event.type === 'WORK_STARTED') sysMsg = 'The professional has started the work.';
+          if (opts.event.type === 'WORK_COMPLETED') sysMsg = 'The professional has marked the work as completed.';
+          if (opts.event.type === 'EN_ROUTE') sysMsg = 'The professional is on the way.';
+
+          if (sysMsg) {
+            await tx.message.create({
+              data: {
+                conversationId: conv.id,
+                isSystem: true,
+                text: sysMsg
+              }
+            });
+            await tx.conversation.update({
+              where: { id: conv.id },
+              data: { lastMessageAt: new Date() }
+            });
+          }
+        }
+      }
+
       return ev.id;
     });
     const workerId = opts.data && 'assignedWorkerId' in opts.data ? (opts.data.assignedWorkerId as string | null) : job.assignedWorkerId;

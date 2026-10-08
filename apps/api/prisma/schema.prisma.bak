@@ -72,7 +72,6 @@ enum UploadPurpose {
   PORTFOLIO
   JOB_PHOTO
   JOB_AUDIO
-  CHAT_PHOTO
 }
 
 enum MediaKind {
@@ -105,20 +104,18 @@ model User {
   failedLoginAttempts Int        @default(0)
   lockoutUntil        DateTime?
 
-  worker          Worker?
-  addresses       Address[]
-  jobRequests     JobRequest[]
-  sentMessages    Message[]      @relation("SentMessages")
-  conversations   Conversation[]
-  messageReads    MessageRead[]
-  blocksCreated   Block[]        @relation("BlocksCreated")
-  blockedBy       Block[]        @relation("BlockedBy")
-  reviewsGiven    Review[]       @relation("ReviewsGiven")
-  reviewsReceived Review[]       @relation("ReviewsReceived")
-  disputesRaised  Dispute[]      @relation("DisputesRaised")
-  properties      Property[]
-  Session         Session[]
-  Notification    Notification[]
+  worker           Worker?
+  addresses        Address[]
+  jobRequests      JobRequest[]
+  sentMessages     ChatMessage[]  @relation("SentMessages")
+  receivedMessages ChatMessage[]  @relation("ReceivedMessages")
+  chatThreads      ChatThread[]
+  reviewsGiven     Review[]       @relation("ReviewsGiven")
+  reviewsReceived  Review[]       @relation("ReviewsReceived")
+  disputesRaised   Dispute[]      @relation("DisputesRaised")
+  properties       Property[]
+  Session          Session[]
+  Notification     Notification[]
 
   @@index([email])
 }
@@ -369,18 +366,18 @@ model JobRequest {
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
-  media         JobMedia[]
-  events        JobEvent[]
-  matches       JobMatch[]
-  offers        Offer[]
-  analyses      JobAiAnalysis[]
-  conversations Conversation[]
-  evidence      JobEvidence[]
-  quotes        Quote[]
-  changeOrders  ChangeOrder[]
-  transactions  Transaction[]
-  disputes      Dispute[]
-  reviews       Review[]
+  media        JobMedia[]
+  events       JobEvent[]
+  matches      JobMatch[]
+  offers       Offer[]
+  analyses     JobAiAnalysis[]
+  chatThreads  ChatThread[]
+  evidence     JobEvidence[]
+  quotes       Quote[]
+  changeOrders ChangeOrder[]
+  transactions Transaction[]
+  disputes     Dispute[]
+  reviews      Review[]
 
   @@unique([customerId, idempotencyKey])
   @@index([customerId])
@@ -516,61 +513,31 @@ model Dispute {
   updatedAt    DateTime   @updatedAt
 }
 
-model Conversation {
+model ChatThread {
   id            String      @id @default(cuid())
   jobRequestId  String?
   jobRequest    JobRequest? @relation(fields: [jobRequestId], references: [id])
   lastMessageAt DateTime?
-  isReadOnly    Boolean     @default(false)
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
   participants User[]
-  messages     Message[]
-  blocks       Block[]
+  messages     ChatMessage[]
 }
 
-model Message {
-  id             String       @id @default(cuid())
-  conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  senderId       String? // null for system messages
-  sender         User?        @relation("SentMessages", fields: [senderId], references: [id])
-  text           String? // optional if imageKey is present
-  imageKey       String? // object-storage key for image message
-  isSystem       Boolean      @default(false)
-  clientId       String? // idempotency
-  createdAt      DateTime     @default(now())
+model ChatMessage {
+  id         String     @id @default(cuid())
+  threadId   String
+  thread     ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender     User       @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId String
+  receiver   User       @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  text       String
+  isRead     Boolean    @default(false)
+  createdAt  DateTime   @default(now())
 
-  reads MessageRead[]
-
-  @@unique([conversationId, clientId])
-  @@index([conversationId, createdAt])
-}
-
-model MessageRead {
-  id        String   @id @default(cuid())
-  messageId String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  readAt    DateTime @default(now())
-
-  @@unique([messageId, userId])
-}
-
-model Block {
-  id             String        @id @default(cuid())
-  blockerId      String
-  blocker        User          @relation("BlocksCreated", fields: [blockerId], references: [id], onDelete: Cascade)
-  blockedId      String
-  blocked        User          @relation("BlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
-  conversationId String?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id])
-  reason         String?
-  createdAt      DateTime      @default(now())
-
-  @@unique([blockerId, blockedId])
+  @@index([threadId])
 }
 
 model ServicePackage {

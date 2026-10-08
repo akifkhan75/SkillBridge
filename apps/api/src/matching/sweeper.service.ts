@@ -36,7 +36,7 @@ export class SweeperService implements OnModuleInit, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  async sweep(now = new Date()): Promise<{ expired: number; matched: number; widened: number } | null> {
+  async sweep(now = new Date()): Promise<{ expired: number; matched: number; widened: number; readOnly?: number } | null> {
     const [{ locked }] = await this.prisma.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_lock(${LOCK_KEY}) AS locked`;
     if (!locked) return null;
     try {
@@ -67,7 +67,20 @@ export class SweeperService implements OnModuleInit, OnModuleDestroy {
       });
       for (const j of stale) await this.matching.matchJob(j.id, 2);
 
-      return { expired: expired.count, matched: unmatched.length, widened: stale.length };
+      const readonlyDays = Number(this.config.get('CONVERSATION_READONLY_DAYS') ?? 3);
+      const cutoff = new Date(now.getTime() - readonlyDays * 24 * 60 * 60 * 1000);
+      const readOnlyCount = await this.prisma.conversation.updateMany({
+        where: {
+          isReadOnly: false,
+          jobRequest: {
+            status: { in: ['COMPLETED', 'CANCELLED'] },
+            updatedAt: { lte: cutoff }
+          }
+        },
+        data: { isReadOnly: true }
+      });
+
+      return { expired: expired.count, matched: unmatched.length, widened: stale.length, readOnly: readOnlyCount.count };
     } finally {
       await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${LOCK_KEY})`;
     }

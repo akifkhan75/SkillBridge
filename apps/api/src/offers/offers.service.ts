@@ -206,6 +206,12 @@ export class OffersService {
           payload: { workerId: offer.workerId, amount: offer.amount, currency: offer.currency },
         },
       });
+      await tx.conversation.create({
+        data: {
+          jobRequestId: job.id,
+          participants: { connect: [{ id: customerId }, { id: offer.workerId }] }
+        }
+      });
       return others;
     });
 

@@ -1,4 +1,4 @@
-export type UploadPurposeName = 'AVATAR' | 'VERIFICATION' | 'PORTFOLIO' | 'JOB_PHOTO' | 'JOB_AUDIO';
+export type UploadPurposeName = 'AVATAR' | 'VERIFICATION' | 'PORTFOLIO' | 'JOB_PHOTO' | 'JOB_AUDIO' | 'CHAT_PHOTO';
 
 export interface UploadPolicy {
   /** Public-read content (avatars, portfolio) vs private (identity documents, signed URLs only). */
@@ -18,6 +18,7 @@ export const UPLOAD_POLICIES: Record<UploadPurposeName, UploadPolicy> = {
   // Job photos and voice notes are private: only the customer and workers allowed to see the job get signed links.
   JOB_PHOTO: { visibility: 'private', maxBytes: 8 * 1024 * 1024, mimes: IMAGE_MIMES },
   JOB_AUDIO: { visibility: 'private', maxBytes: 5 * 1024 * 1024, mimes: AUDIO_MIMES },
+  CHAT_PHOTO: { visibility: 'private', maxBytes: 8 * 1024 * 1024, mimes: IMAGE_MIMES },
 };
 
 export interface UploadTarget {

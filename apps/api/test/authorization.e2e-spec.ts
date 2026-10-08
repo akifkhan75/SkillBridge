@@ -105,7 +105,7 @@ describe('Authorization (e2e)', () => {
       await http().get('/api/health').expect(200);
       await http().get('/api/service-catalog/categories').expect(200);
     });
-    it.each(['/api/users', '/api/workers', '/api/job-requests', '/api/disputes/all', '/api/chat/threads'])(
+    it.each(['/api/users', '/api/workers', '/api/job-requests', '/api/disputes/all', '/api/conversations'])(
       '%s needs a token',
       (path) => http().get(path).expect(401),
     );
