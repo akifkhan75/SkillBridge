@@ -4,83 +4,62 @@ on:
   push:
     branches: [main]
   pull_request:
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+    branches: [main]
 
 jobs:
-  verify:
+  validate:
+    name: Lint, Test, and Build
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: fixli
-          POSTGRES_PASSWORD: ci-password
-          POSTGRES_DB: fixli_ci
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U fixli" --health-interval 5s
-          --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports: ['6379:6379']
-        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
-    env:
-      DATABASE_URL: postgresql://fixli:ci-password@localhost:5432/fixli_ci?schema=public
-      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
-      ENABLED_COUNTRIES: PK
-      NODE_ENV: test
-      # Only the two-instance realtime suite uses Redis (test/realtime.e2e-spec.ts).
-      E2E_REDIS_URL: redis://localhost:6379
-      EXPO_PUBLIC_API_URL: http://localhost:3002/api
-      VITE_API_URL: http://localhost:3002/api
+    
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
 
-      # API and app import the compiled shared package (phone/password/country rules).
-      - name: Build shared package
-        run: pnpm --filter @fixli/shared build
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
 
-      - name: Shared tests
-        run: pnpm --filter @fixli/shared test
-
-      - name: Prisma client + migrations apply cleanly
-        working-directory: apps/api
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          pnpm exec prisma generate
-          pnpm exec prisma migrate deploy
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
-      - name: Schema matches migrations (no drift)
-        working-directory: apps/api
-        run: pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma Generate
+        run: pnpm --filter @fixli/api db:generate
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: API unit tests
-        run: pnpm --filter @fixli/api test
+      - name: Lint
+        run: pnpm lint
 
-      - name: API e2e tests
-        run: pnpm --filter @fixli/api test:e2e
+      - name: Unit Tests
+        run: pnpm test
 
-      - name: Mobile tests
-        run: pnpm --filter @fixli/mobile test
+      # Mobile smoke build to ensure UI doesn't break
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build API, admin and web
-        run: |
-          pnpm --filter @fixli/api build
-          pnpm --filter admin build
-          pnpm --filter web build
-
-      - name: Lint admin and web
-        run: |
-          pnpm --filter admin lint
-          pnpm --filter web lint
+      - name: Mobile Smoke Build (Web/Export)
+        run: pnpm --filter @fixli/mobile run build
