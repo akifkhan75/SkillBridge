@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, ForbiddenException, NotFoundExc
 import { WorkersService } from './workers.service';
 
 describe('WorkersService', () => {
-  const tx = { portfolioItem: { create: jest.fn() }, verificationCase: { create: jest.fn() } };
+  const tx = { portfolioItem: { create: jest.fn() }, verificationCase: { create: jest.fn().mockResolvedValue({ id: 'case1' }) } };
   const prisma: any = {
     worker: { findMany: jest.fn(), findFirst: jest.fn(), findUnique: jest.fn(), update: jest.fn() },
     serviceCategory: { findMany: jest.fn() },
@@ -15,12 +15,14 @@ describe('WorkersService', () => {
   };
   const storage = { publicUrl: (k: string) => `http://cdn/${k}`, consume: jest.fn() };
   const audit = { record: jest.fn() };
-  const svc = new WorkersService(prisma, storage as any, audit as any);
+  const events = { emit: jest.fn() };
+  const svc = new WorkersService(prisma, storage as any, audit as any, events as any);
 
   beforeEach(() => {
+    tx.verificationCase.create.mockResolvedValue({ id: 'case1' });
     prisma.$transaction.mockImplementation(async (arg: any) => (typeof arg === 'function' ? arg(tx) : Promise.all(arg)));
   });
-  afterEach(() => jest.resetAllMocks());
+  afterEach(() => jest.clearAllMocks());
 
   const ownProfile = (over: any = {}) => ({
     id: 'w1', activationStatus: 'ONBOARDING', services: [], workingHours: [], portfolio: [], verifications: [],
