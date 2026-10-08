@@ -7,10 +7,12 @@ import { useTheme } from '../../hooks/useTheme';
 import { Text } from './Text';
 import type { JobEventView, JobMediaView } from '../../services/api';
 import { eventSentence, type Viewer } from '../../utils/jobStatus';
+import { useI18n } from '../../hooks/useI18n';
 
 /** Photos (horizontal) and the voice note with its transcript. Links are short-lived and signed. */
 export function JobMedia({ media }: { media: JobMediaView[] }) {
   const theme = useTheme();
+  const { t } = useI18n();
   const photos = media.filter((m) => m.kind === 'PHOTO');
   const voice = media.find((m) => m.kind === 'AUDIO');
   const player = useAudioPlayer(voice?.url ?? null);
@@ -27,7 +29,7 @@ export function JobMedia({ media }: { media: JobMediaView[] }) {
           style={{ marginTop: 12, backgroundColor: theme.colors.surface, borderRadius: 14, padding: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Ionicons name="play-circle" size={28} color={theme.colors.primary} />
-            <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ marginStart: 8 }}>Voice note</Text>
+            <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ marginStart: 8 }}>{t('job.voiceNote')}</Text>
           </View>
           {voice.transcript ? <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginTop: 6 }}>"{voice.transcript}"</Text> : null}
         </TouchableOpacity>
@@ -39,10 +41,11 @@ export function JobMedia({ media }: { media: JobMediaView[] }) {
 /** What actually happened, in order, from the server's event log. */
 export function JobHistory({ events, viewer, locale }: { events: JobEventView[]; viewer: Viewer; locale?: string }) {
   const theme = useTheme();
+  const { t } = useI18n();
   if (!events.length) return null;
   return (
     <View style={{ marginTop: 24 }}>
-      <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary} style={{ marginBottom: 8 }}>HISTORY</Text>
+      <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary} style={{ marginBottom: 8 }}>{t('job.history')}</Text>
       {events.map((e, i) => (
         <View key={e.id} style={{ flexDirection: 'row' }}>
           <View style={{ alignItems: 'center', width: 20 }}>

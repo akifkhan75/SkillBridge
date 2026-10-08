@@ -10,7 +10,12 @@ import { StatusTimeline } from '../../../src/components/ds/StatusTimeline';
 import { ErrorState, LoadingState } from '../../../src/components/ds/EmptyState';
 import { formatWindow, statusSentence, toPhase } from '../../../src/utils/jobStatus';
 import { JobHistory, JobMedia } from '../../../src/components/ds/JobParts';
+import { ChangeOrdersList } from '../../../src/components/ds/ChangeOrdersList';
+import { ReviewForm } from '../../../src/components/ds/ReviewForm';
+import { TextInput } from '../../../src/components/ds/TextInput';
 import { PriceForm } from '../../../src/components/ds/PriceForm';
+import { useAppDispatch, useAppSelector } from '../../../src/hooks/useRedux';
+import { startTracking, stopTracking } from '../../../src/store/trackingSlice';
 import { formatMoney } from '../../../src/utils/money';
 import { router } from 'expo-router';
 import { useI18n } from '../../../src/hooks/useI18n';
@@ -26,8 +31,23 @@ export default function WorkerJobScreen() {
   const [actionError, setActionError] = useState<string | undefined>();
   const me = useApi(api.getWorkerMe);
   const [editingPrice, setEditingPrice] = useState(false);
+  const [creatingChangeOrder, setCreatingChangeOrder] = useState(false);
+  const [coReason, setCoReason] = useState('');
+  const [coScope, setCoScope] = useState('');
+  const [coPriceStr, setCoPriceStr] = useState('');
+  const dispatch = useAppDispatch();
+  const currentUser = useAppSelector(state => state.auth.user);
+  
   // Booked by the customer, chosen someone else, cancelled: the screen follows along.
   useLiveReload(reload, ['job.updated', 'feed.updated'], (e) => e.data?.jobId === id);
+
+  useEffect(() => {
+    if (job?.status === 'EN_ROUTE' && me.data) {
+      dispatch(startTracking({ workerId: me.data.id, jobId: job.id, customerLocation: { latitude: job.latitude || 0, longitude: job.longitude || 0 } }));
+    } else {
+      dispatch(stopTracking());
+    }
+  }, [job?.status, me.data?.id, job?.id, job?.latitude, job?.longitude, dispatch]);
 
   if (loading && !job) return <Screen title="Job" back><LoadingState /></Screen>;
   if (error && !job) return <Screen title="Job" back><ErrorState message={error} onRetry={reload} /></Screen>;
@@ -52,6 +72,29 @@ export default function WorkerJobScreen() {
     setBusy(true);
     try { await api.notInterested(job.id); router.back(); } catch (e) { setActionError(friendlyError(e)); setBusy(false); }
   };
+  
+  const submitChangeOrder = async () => {
+    setBusy(true);
+    setActionError(undefined);
+    try {
+      await api.createChangeOrder({
+        jobRequestId: job.id,
+        reason: coReason,
+        addedScope: coScope,
+        revisedPrice: parseInt(coPriceStr, 10),
+      });
+      setCreatingChangeOrder(false);
+      setCoReason('');
+      setCoScope('');
+      setCoPriceStr('');
+      await reload();
+    } catch (e) {
+      setActionError(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const offer = job.myOffer && job.myOffer.status === 'PENDING' ? job.myOffer : null;
 
   // One primary action per state; the server enforces the order.
@@ -62,10 +105,30 @@ export default function WorkerJobScreen() {
         <View style={{ flex: 1 }}><Button title="Accept job" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.acceptJob)} /></View>
       </View>
     ) : job.status === 'ACCEPTED' ? (
+      <Button title="I'm on my way" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.enRouteJob)} />
+    ) : job.status === 'EN_ROUTE' ? (
+      <Button title="I've arrived" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.arriveJob)} />
+    ) : job.status === 'ARRIVED' ? (
       <Button title="Start work" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.startJob)} />
     ) : job.status === 'IN_PROGRESS' ? (
-      <Button title="Mark as done" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.completeJob)} />
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}><Button title="Change Order" variant="secondary" size="lg" disabled={busy} onPress={() => setCreatingChangeOrder(true)} /></View>
+        <View style={{ flex: 1 }}><Button title="Finish work" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.finishJob)} /></View>
+      </View>
     ) : undefined;
+
+  const payment = job.payments?.[0];
+  const needsPayment = (job.status === 'AWAITING_CONFIRMATION' || job.status === 'COMPLETED') && !payment && job.agreedAmount;
+
+  const handleMarkCash = async () => {
+    if (!job.agreedAmount) return;
+    setBusy(true);
+    setActionError(undefined);
+    try {
+      await api.markCashReceived(job.id, job.agreedAmount, job.agreedCurrency || 'USD');
+      await reload();
+    } catch (e) { setActionError(friendlyError(e)); } finally { setBusy(false); }
+  };
 
   return (
     <Screen title="Job" back footer={action} onRefresh={reload} refreshing={loading}>
@@ -79,6 +142,26 @@ export default function WorkerJobScreen() {
         <Text variant="body" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.description}</Text>
       </View>
       <JobMedia media={job.media ?? []} />
+      
+      {creatingChangeOrder && (
+        <View style={{ marginTop: 20, backgroundColor: theme.colors.surfaceVariant, padding: 16, borderRadius: theme.borderRadius.lg }}>
+          <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>New Change Order</Text>
+          <View style={{ gap: 12 }}>
+            <TextInput label="Reason for change" value={coReason} onChangeText={setCoReason} placeholder="e.g. Found water damage" />
+            <TextInput label="Added scope" value={coScope} onChangeText={setCoScope} placeholder="e.g. Replace drywall" />
+            <TextInput label="New Total Price (Minor units)" value={coPriceStr} onChangeText={setCoPriceStr} keyboardType="numeric" />
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+              <View style={{ flex: 1 }}><Button title="Cancel" variant="secondary" disabled={busy} onPress={() => setCreatingChangeOrder(false)} /></View>
+              <View style={{ flex: 1 }}><Button title="Submit" variant="primary" loading={busy} disabled={busy || !coReason || !coScope || !coPriceStr} onPress={submitChangeOrder} /></View>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {job.status !== 'CANCELLED' && (
+        <ChangeOrdersList jobId={job.id} viewer="worker" />
+      )}
+
       <View style={{ marginTop: 20 }}>
         <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>WHEN</Text>
         <Text variant="bodyLarge" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{formatWindow(job.scheduledFrom, job.scheduledTo, job.whenOption, locale)}</Text>
@@ -120,8 +203,28 @@ export default function WorkerJobScreen() {
         </View>
       ) : null}
       {job.agreedAmount && job.agreedCurrency ? (
-        <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 20 }}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
+        <View style={{ marginTop: 20 }}>
+          <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
+          {needsPayment ? (
+            <View style={{ marginTop: 12 }}>
+              <Button title="Mark Cash Received" variant="primary" loading={busy} disabled={busy} onPress={handleMarkCash} />
+            </View>
+          ) : payment ? (
+            <Text variant="bodySmall" weight="bold" color={payment.status === 'CONFIRMED' ? theme.colors.success : theme.colors.warning} style={{ marginTop: 8 }}>
+              Payment: {payment.status.replace(/_/g, ' ')}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
+
+      {job.status === 'COMPLETED' && job.customer && currentUser && !job.reviews?.some(r => r.reviewerId === currentUser.id) && (
+        <ReviewForm 
+          jobId={job.id} 
+          targetId={job.customer.id} 
+          targetName={job.customer.name} 
+          onSubmitted={reload} 
+        />
+      )}
 
       <JobHistory events={job.events ?? []} viewer="worker" locale={locale} />
     </Screen>

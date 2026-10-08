@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notifications.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
 @Injectable()
 export class ChatService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationService
+  ) {}
 
   async getConversationsForUser(userId: string, cursor?: string) {
     const take = 20;
@@ -137,6 +141,20 @@ export class ChatService {
     }
 
     const [message] = await this.prisma.$transaction(txOps);
+    
+    // Notify other participants
+    const otherParticipants = conversation.participants.filter(p => p.id !== senderId);
+    if (otherParticipants.length > 0 && !dto.isSystem && dto.text) {
+      const sender = conversation.participants.find(p => p.id === senderId);
+      this.notifications.notify({
+        type: 'chat.message',
+        userIds: otherParticipants.map(p => p.id),
+        eventKey: `message:${message.id}`,
+        params: { sender: sender?.name ?? 'Someone', text: dto.text },
+        data: { url: `/(shared)/chat/${dto.threadId}` },
+      });
+    }
+
     return message;
   }
 

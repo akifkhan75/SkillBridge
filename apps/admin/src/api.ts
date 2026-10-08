@@ -123,3 +123,17 @@ export const updateDispute = (id: string, status: string, resolution?: string) =
 
 export interface Category { id: string; name: string; description: string | null; iconName: string | null; isActive: boolean; translations: Record<string, { name?: string }> | null; services: { id: string; name: string }[]; issues: { id: string; name: string }[] }
 export const listCategories = () => request<Category[]>('/service-catalog/categories');
+
+// ── Users ──────────────────────────────────────────────────
+export interface SearchUserRow { id: string; name: string; phone: string | null; email: string | null; type: string; status: string; createdAt: string; worker?: { activationStatus: string } }
+export const searchUsers = (q: string) => request<SearchUserRow[]>(`/admin/v1/users?q=${encodeURIComponent(q)}`);
+export const suspendUser = (id: string, reason: string) => request<{ success: boolean }>(`/admin/v1/users/${id}/suspend`, { method: 'POST', body: JSON.stringify({ reason }) });
+
+// ── Jobs ───────────────────────────────────────────────────
+export interface AdminJobRow { id: string; status: string; createdAt: string; customerId: string; assignedWorkerId: string | null; category: { name: string } | null; customer: { name: string } | null; assignedWorker: { user: { name: string } } | null }
+export const listJobs = (status?: string, skip: number = 0) => request<AdminJobRow[]>(`/admin/v1/jobs?skip=${skip}${status ? `&status=${status}` : ''}`);
+export const adminCancelJob = (id: string, reason: string) => request<{ success: boolean }>(`/admin/v1/jobs/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) });
+
+// ── Ledger ─────────────────────────────────────────────────
+export interface LedgerRow { id: string; method: string; amount: number; currency: string; status: string; createdAt: string; jobRequest?: { id: string } }
+export const listPayments = (skip: number = 0) => request<LedgerRow[]>(`/admin/v1/payments?skip=${skip}`);

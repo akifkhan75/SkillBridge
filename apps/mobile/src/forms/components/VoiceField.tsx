@@ -12,6 +12,7 @@ import { TextInput } from '../../components/ds/TextInput';
 import { uploadAudio } from '../../services/upload';
 import { transcribeVoice } from '../../services/api';
 import { openSettings } from '../../services/pickPhoto';
+import { useI18n } from '../../hooks/useI18n';
 
 const MAX_MS = 60_000;
 const MIN_MS = 800;
@@ -37,6 +38,7 @@ interface VoiceFieldProps {
  */
 export function VoiceField({ value, onChange, locale, label = 'Tell us in your own words' }: VoiceFieldProps) {
   const theme = useTheme();
+  const { t } = useI18n();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const rec = useAudioRecorderState(recorder, 200);
   const player = useAudioPlayer(value.audioUri ?? null);
@@ -119,16 +121,16 @@ export function VoiceField({ value, onChange, locale, label = 'Tell us in your o
           <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 8 }}>
             {busy ? 'Listening to your note…' : rec.isRecording ? `Recording… ${seconds}s  (let go to finish)` : 'Hold to talk'}
           </Text>
-          {!rec.isRecording && !busy ? <Text variant="caption" color={theme.colors.textTertiary}>Up to 60 seconds, in any language</Text> : null}
+          {!rec.isRecording && !busy ? <Text variant="caption" color={theme.colors.textTertiary}>{t('voice.hint')}</Text> : null}
         </Pressable>
       ) : (
         <View style={[styles.done, { backgroundColor: theme.colors.surface }]}>
           <TouchableOpacity onPress={() => { player.seekTo(0); player.play(); }} accessibilityRole="button" accessibilityLabel="Play your voice note" style={styles.row}>
             <Ionicons name="play-circle" size={30} color={theme.colors.primary} />
-            <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ marginStart: 8, flex: 1 }}>Your voice note</Text>
+            <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ marginStart: 8, flex: 1 }}>{t('voice.yourNote')}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={clear} accessibilityRole="button" accessibilityLabel="Delete voice note and record again" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text variant="bodySmall" weight="semibold" color={theme.colors.error}>Record again</Text>
+            <Text variant="bodySmall" weight="semibold" color={theme.colors.error}>{t('voice.rerecord')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -146,7 +148,7 @@ export function VoiceField({ value, onChange, locale, label = 'Tell us in your o
       ) : null}
 
       {error ? <Text variant="bodySmall" color={theme.colors.error} accessibilityRole="alert" style={{ marginTop: 8 }}>{error}</Text> : null}
-      {denied ? <TouchableOpacity onPress={openSettings} accessibilityRole="button" style={{ marginTop: 6 }}><Text variant="bodySmall" weight="semibold" color={theme.colors.primary}>Open Settings</Text></TouchableOpacity> : null}
+      {denied ? <TouchableOpacity onPress={openSettings} accessibilityRole="button" style={{ marginTop: 6 }}><Text variant="bodySmall" weight="semibold" color={theme.colors.primary}>{t('voice.openSettings')}</Text></TouchableOpacity> : null}
     </View>
   );
 }

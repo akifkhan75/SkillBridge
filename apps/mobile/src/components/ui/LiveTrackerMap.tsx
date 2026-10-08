@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useI18n } from '../../hooks/useI18n';
 
 interface Coordinates {
   latitude: number;
@@ -15,6 +16,7 @@ interface LiveTrackerMapProps {
 }
 
 export default function LiveTrackerMap({ customerLocation, workerLocation, etaString }: LiveTrackerMapProps) {
+  const { t } = useI18n();
   // Center map between both points or default to customer
   const initialRegion = {
     latitude: customerLocation?.latitude || workerLocation?.latitude || 37.78825,
@@ -58,7 +60,7 @@ export default function LiveTrackerMap({ customerLocation, workerLocation, etaSt
       
       {etaString && (
         <View style={styles.etaCard}>
-          <Text style={styles.etaLabel}>Estimated Arrival</Text>
+          <Text style={styles.etaLabel}>{t('map.etaLabel')}</Text>
           <Text style={styles.etaText}>{etaString}</Text>
         </View>
       )}

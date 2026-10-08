@@ -42,3 +42,7 @@ web-build/
 
 # Local file storage (dev)
 apps/api/storage/
+
+# Native directories (Expo CNG)
+apps/mobile/ios/
+apps/mobile/android/

@@ -9,11 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-light.png",
+      "image": "./assets/images/logo-light.png",
       "resizeMode": "contain",
       "backgroundColor": "#F1F5F9",
       "dark": {
-        "image": "./assets/splash-dark.png",
+        "image": "./assets/images/logo-dark.png",
         "resizeMode": "contain",
         "backgroundColor": "#0A1228"
       }
@@ -44,12 +44,12 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/splash-light.png",
+          "image": "./assets/images/logo-light.png",
           "imageWidth": 220,
           "resizeMode": "contain",
           "backgroundColor": "#F1F5F9",
           "dark": {
-            "image": "./assets/splash-dark.png",
+            "image": "./assets/images/logo-dark.png",
             "backgroundColor": "#0A1228"
           }
         }

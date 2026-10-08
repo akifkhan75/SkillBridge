@@ -18,7 +18,8 @@ export type NotificationType =
   | 'job.no_one_available'
   | 'verification.approved'
   | 'verification.needs_fix'
-  | 'worker.activated';
+  | 'worker.activated'
+  | 'chat.message';
 
 type Locale = 'en' | 'ur' | 'ar';
 export type Money = { minor: number; currency: string };
@@ -40,6 +41,7 @@ const en: Record<NotificationType, T> = {
   'verification.approved': (p) => ({ title: 'Document approved', body: `Your ${p.doc} was approved.` }),
   'verification.needs_fix': (p) => ({ title: 'Please fix a document', body: `Your ${p.doc} needs a new photo. ${p.reason ?? ''}`.trim() }),
   'worker.activated': () => ({ title: "You're approved!", body: 'Go online on the Today tab to start getting jobs.' }),
+  'chat.message': (p) => ({ title: `New message from ${p.sender}`, body: `${p.text}` }),
 };
 
 const ur: Record<NotificationType, T> = {
@@ -57,6 +59,7 @@ const ur: Record<NotificationType, T> = {
   'verification.approved': (p) => ({ title: 'دستاویز منظور', body: `آپ کی ${p.doc} منظور ہو گئی۔` }),
   'verification.needs_fix': (p) => ({ title: 'دستاویز درست کریں', body: `آپ کی ${p.doc} کی نئی تصویر درکار ہے۔ ${p.reason ?? ''}`.trim() }),
   'worker.activated': () => ({ title: 'آپ منظور ہو گئے!', body: 'کام لینے کے لیے "آج" والے حصے میں آن لائن ہو جائیں۔' }),
+  'chat.message': (p) => ({ title: `${p.sender} کا نیا پیغام`, body: `${p.text}` }),
 };
 
 const ar: Record<NotificationType, T> = {
@@ -74,6 +77,7 @@ const ar: Record<NotificationType, T> = {
   'verification.approved': (p) => ({ title: 'تمت الموافقة على المستند', body: `تمت الموافقة على ${p.doc}.` }),
   'verification.needs_fix': (p) => ({ title: 'يرجى تصحيح مستند', body: `يحتاج ${p.doc} إلى صورة جديدة. ${p.reason ?? ''}`.trim() }),
   'worker.activated': () => ({ title: 'تمت الموافقة عليك!', body: 'كن متصلاً من تبويب "اليوم" لتبدأ باستلام الأعمال.' }),
+  'chat.message': (p) => ({ title: `رسالة جديدة من ${p.sender}`, body: `${p.text}` }),
 };
 
 const DOC: Record<Locale, Record<string, string>> = {

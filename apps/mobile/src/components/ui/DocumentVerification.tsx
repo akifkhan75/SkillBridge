@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius } from '../../theme';
+import { useI18n } from '../../hooks/useI18n';
 
 interface DocumentVerificationProps {
   onUploadSuccess?: () => void;
@@ -10,6 +11,7 @@ interface DocumentVerificationProps {
 export default function DocumentVerification({ onUploadSuccess }: DocumentVerificationProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
+  const { t } = useI18n();
 
   const handleUpload = () => {
     setIsUploading(true);
@@ -23,7 +25,7 @@ export default function DocumentVerification({ onUploadSuccess }: DocumentVerifi
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Identity & License Verification</Text>
+      <Text style={styles.title}>{t('verify.title')}</Text>
       <Text style={styles.description}>
         Upload your government ID or professional license. Our AI verification system will process it instantly.
       </Text>
@@ -31,7 +33,7 @@ export default function DocumentVerification({ onUploadSuccess }: DocumentVerifi
       {isVerified ? (
         <View style={styles.successBox}>
           <Ionicons name="checkmark-circle" size={32} color="#10B981" />
-          <Text style={styles.successText}>Documents Verified</Text>
+          <Text style={styles.successText}>{t('verify.success')}</Text>
         </View>
       ) : (
         <TouchableOpacity 
@@ -43,13 +45,13 @@ export default function DocumentVerification({ onUploadSuccess }: DocumentVerifi
           {isUploading ? (
             <View style={styles.loadingState}>
               <ActivityIndicator size="large" color={colors.dark.primary} />
-              <Text style={styles.loadingText}>Running OCR Scan...</Text>
+              <Text style={styles.loadingText}>{t('verify.ocr')}</Text>
             </View>
           ) : (
             <View style={styles.emptyState}>
               <Ionicons name="cloud-upload-outline" size={48} color={colors.dark.primary} />
-              <Text style={styles.uploadText}>Tap to upload documents</Text>
-              <Text style={styles.uploadSubtext}>Supports JPG, PNG, PDF</Text>
+              <Text style={styles.uploadText}>{t('verify.upload')}</Text>
+              <Text style={styles.uploadSubtext}>{t('verify.uploadSub')}</Text>
             </View>
           )}
         </TouchableOpacity>

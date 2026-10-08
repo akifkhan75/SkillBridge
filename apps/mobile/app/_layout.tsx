@@ -14,7 +14,8 @@ import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTrac
 import * as Sentry from '@sentry/react-native';
 
 Sentry.init({
-  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'YOUR_SENTRY_DSN',
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !!process.env.EXPO_PUBLIC_SENTRY_DSN && process.env.EXPO_PUBLIC_SENTRY_DSN !== 'YOUR_SENTRY_DSN',
   debug: false,
 });
 
@@ -87,8 +88,36 @@ function SessionGate({ children }: { children: React.ReactNode }) {
   return restored ? <>{children}</> : null;
 }
 
-function RootLayout() {
+function RootLayoutInner() {
   const theme = useTheme();
+  
+  return (
+    <I18nProvider>
+      <CountryProvider>
+      <BottomSheetModalProvider>
+        <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+          <SessionGate>
+            <SocketHandler />
+            <LocationTrackerHandler />
+            <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
+            <SignedIn>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'slide_from_right',
+                  contentStyle: { backgroundColor: theme.colors.background },
+                }}
+              />
+            </SignedIn>
+          </SessionGate>
+        </View>
+      </BottomSheetModalProvider>
+      </CountryProvider>
+    </I18nProvider>
+  );
+}
+
+function RootLayout() {
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -102,28 +131,7 @@ function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
-        <I18nProvider>
-          <CountryProvider>
-          <BottomSheetModalProvider>
-            <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-              <SessionGate>
-                <SocketHandler />
-                <LocationTrackerHandler />
-                <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
-                <SignedIn>
-                  <Stack
-                    screenOptions={{
-                      headerShown: false,
-                      animation: 'slide_from_right',
-                      contentStyle: { backgroundColor: theme.colors.background },
-                    }}
-                  />
-                </SignedIn>
-              </SessionGate>
-            </View>
-          </BottomSheetModalProvider>
-          </CountryProvider>
-        </I18nProvider>
+        <RootLayoutInner />
       </Provider>
     </GestureHandlerRootView>
   );

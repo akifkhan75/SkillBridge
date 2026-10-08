@@ -41,6 +41,8 @@ const DETAIL_INCLUDE = {
   ...BASE_INCLUDE,
   media: { select: { id: true, kind: true, storageKey: true, mime: true, transcript: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
   events: { select: { id: true, type: true, fromStatus: true, toStatus: true, actorId: true, payload: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
+  payments: { select: { id: true, method: true, amount: true, currency: true, status: true, createdAt: true }, orderBy: { createdAt: 'desc' as const } },
+  reviews: { select: { id: true, rating: true, comment: true, reviewerId: true } },
   _count: { select: { matches: true } },
 } satisfies Prisma.JobRequestInclude;
 
@@ -105,6 +107,8 @@ export class JobsService {
       );
     }
     if (events) out.events = events;
+    if ((job as any).payments) out.payments = (job as any).payments;
+    if ((job as any).reviews) out.reviews = (job as any).reviews;
     const counts = (job as any)._count;
     delete out._count;
     if (counts && !isWorker) out.notifiedCount = counts.matches;

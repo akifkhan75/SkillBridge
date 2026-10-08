@@ -36,12 +36,15 @@ export function LoadingState({ message }: { message?: string }) {
   );
 }
 
+import { useI18n } from '../../hooks/useI18n';
+
 export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   const theme = useTheme();
+  const { t } = useI18n();
   return (
     <View style={styles.container} accessibilityRole="alert">
       <Ionicons name="cloud-offline-outline" size={44} color={theme.colors.textTertiary} />
-      <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} align="center" style={{ marginTop: 16 }}>Something went wrong</Text>
+      <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} align="center" style={{ marginTop: 16 }}>{t('error.general')}</Text>
       <Text variant="body" color={theme.colors.textSecondary} align="center" style={{ marginTop: 6 }}>{message}</Text>
       <View style={{ marginTop: 20, alignSelf: 'stretch' }}><Button title="Try again" onPress={onRetry} variant="primary" size="lg" /></View>
     </View>

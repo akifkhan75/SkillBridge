@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useI18n } from '../../hooks/useI18n';
 
 interface PortfolioItem {
   id: string;
@@ -17,19 +18,20 @@ interface WorkerPortfolioProps {
 
 export default function WorkerPortfolio({ portfolio }: WorkerPortfolioProps) {
   const [selectedItem, setSelectedItem] = useState<PortfolioItem | null>(null);
+  const { t } = useI18n();
 
   if (!portfolio || portfolio.length === 0) {
     return (
       <View style={styles.emptyContainer}>
         <Ionicons name="images-outline" size={32} color="#6B7280" />
-        <Text style={styles.emptyText}>No portfolio items yet.</Text>
+        <Text style={styles.emptyText}>{t('portfolio.empty')}</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Portfolio & Past Work</Text>
+      <Text style={styles.sectionTitle}>{t('portfolio.title')}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         {portfolio.map((item) => (
           <TouchableOpacity
@@ -57,11 +59,11 @@ export default function WorkerPortfolio({ portfolio }: WorkerPortfolioProps) {
               {selectedItem.beforeImageUrl ? (
                 <View style={styles.beforeAfterContainer}>
                   <View style={styles.imageWrapper}>
-                    <Text style={styles.imageLabel}>Before</Text>
+                    <Text style={styles.imageLabel}>{t('portfolio.before')}</Text>
                     <Image source={{ uri: selectedItem.beforeImageUrl }} style={styles.fullImage} />
                   </View>
                   <View style={styles.imageWrapper}>
-                    <Text style={styles.imageLabel}>After</Text>
+                    <Text style={styles.imageLabel}>{t('portfolio.after')}</Text>
                     <Image source={{ uri: selectedItem.imageUrl }} style={styles.fullImage} />
                   </View>
                 </View>

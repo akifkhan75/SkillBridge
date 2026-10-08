@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { LayoutDashboard, CheckCircle, AlertTriangle, Briefcase, LogOut } from 'lucide-react';
+import { LayoutDashboard, CheckCircle, AlertTriangle, Briefcase, LogOut, Users, Activity, CreditCard } from 'lucide-react';
 import { useAuth } from '../auth';
 import './Layout.css';
 
@@ -7,8 +7,11 @@ export default function Layout() {
   const { user, signOut } = useAuth();
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+    { name: 'Users', path: '/users', icon: Users },
+    { name: 'Jobs', path: '/jobs', icon: Activity },
     { name: 'Verifications', path: '/verifications', icon: CheckCircle },
     { name: 'Disputes', path: '/disputes', icon: AlertTriangle },
+    { name: 'Ledger', path: '/ledger', icon: CreditCard },
     { name: 'Service catalogue', path: '/services', icon: Briefcase },
   ];
 

@@ -53,6 +53,36 @@ services:
     volumes:
       - ./:/app
 
+  admin:
+    image: node:20
+    container_name: fixli-admin
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && cd apps/admin && pnpm run dev -- --host 0.0.0.0 --port 5173"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '5173:5173'
+    depends_on:
+      - api
+    volumes:
+      - ./:/app
+
+  web:
+    image: node:20
+    container_name: fixli-web
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && cd apps/web && pnpm run dev -- --host 0.0.0.0 --port 5174"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '5174:5174'
+    depends_on:
+      - api
+    volumes:
+      - ./:/app
+
 volumes:
   postgres_data:
   pgadmin_data:

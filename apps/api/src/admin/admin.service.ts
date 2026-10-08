@@ -52,6 +52,7 @@ export class AdminService {
       include: {
         customer: { select: { name: true, phone: true } },
         assignedWorker: { select: { user: { select: { name: true, phone: true } } } },
+        category: { select: { name: true } },
       },
       orderBy: { createdAt: 'desc' },
       skip,

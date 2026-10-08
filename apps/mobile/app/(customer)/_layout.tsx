@@ -47,6 +47,15 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
+        name="chat"
+        options={{
+          title: t('nav.messages') || 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: t('nav.profile') || 'Account',

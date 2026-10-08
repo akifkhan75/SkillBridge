@@ -12,8 +12,13 @@ import { ChipChoice } from '../../../src/components/ds/ChipChoice';
 import { TextInput } from '../../../src/components/ds/TextInput';
 import { StatusTimeline } from '../../../src/components/ds/StatusTimeline';
 import { JobHistory, JobMedia } from '../../../src/components/ds/JobParts';
+import { ChangeOrdersList } from '../../../src/components/ds/ChangeOrdersList';
+import { ReviewForm } from '../../../src/components/ds/ReviewForm';
 import { ErrorState, LoadingState } from '../../../src/components/ds/EmptyState';
 import { OfferCard } from '../../../src/components/ds/OfferCard';
+import MapView, { Marker } from 'react-native-maps';
+import { useAppDispatch, useAppSelector } from '../../../src/hooks/useRedux';
+import { selectTrackingState, startTracking, stopTracking } from '../../../src/store/trackingSlice';
 import { formatMoney } from '../../../src/utils/money';
 import { CANCEL_REASON_LABEL, formatWindow, statusSentence, toPhase } from '../../../src/utils/jobStatus';
 import { humanize, localizedName } from '../../../src/utils/catalog';
@@ -39,6 +44,18 @@ export default function CustomerJobScreen() {
   useLiveReload(reload, ['job.updated'], mine);
   useLiveReload(offers.reload, ['offers.updated'], mine, { enabled: open, fallbackMs: 60_000 });
   useEffect(() => { if (confirming && !offers.data?.some((o) => o.id === confirming.id)) setConfirming(null); }, [offers.data, confirming]);
+
+  const dispatch = useAppDispatch();
+  const trackingState = useAppSelector(selectTrackingState);
+  const currentUser = useAppSelector(state => state.auth.user);
+
+  useEffect(() => {
+    if (job?.status === 'EN_ROUTE' && job.assignedWorker) {
+      dispatch(startTracking({ workerId: job.assignedWorker.user.id, jobId: job.id, customerLocation: { latitude: job.latitude || 0, longitude: job.longitude || 0 } }));
+    } else {
+      dispatch(stopTracking());
+    }
+  }, [job?.status, job?.assignedWorker?.user.id, job?.id, job?.latitude, job?.longitude, dispatch]);
 
   if (loading && !job) return <Screen title="Your request" back><LoadingState /></Screen>;
   if (error && !job) return <Screen title="Your request" back><ErrorState message={error} onRetry={reload} /></Screen>;
@@ -71,7 +88,24 @@ export default function CustomerJobScreen() {
     } catch (e) { setActionError(friendlyError(e)); } finally { setBusy(false); }
   };
 
-  const footer = !cancellable ? undefined : cancelling ? (
+  const payment = job.payments?.[0];
+  const confirmCash = async () => {
+    if (!payment) return;
+    setBusy(true);
+    try {
+      await api.confirmPayment(payment.id);
+      await reload();
+    } catch (e) { setActionError(friendlyError(e)); } finally { setBusy(false); }
+  };
+
+  const footer = !cancellable && job.status !== 'AWAITING_CONFIRMATION' ? undefined : job.status === 'AWAITING_CONFIRMATION' ? (
+    <Button title="Confirm Work is Done" variant="primary" size="lg" loading={busy} disabled={busy} onPress={async () => {
+      setBusy(true);
+      try {
+        setData(await api.confirmJob(job.id));
+      } catch (e) { setActionError(friendlyError(e)); } finally { setBusy(false); }
+    }} />
+  ) : cancelling ? (
     <View style={{ flexDirection: 'row', gap: 12 }}>
       <View style={{ flex: 1 }}><Button title="Keep request" variant="secondary" size="lg" disabled={busy} onPress={() => setCancelling(false)} /></View>
       <View style={{ flex: 1 }}><Button title="Cancel it" variant="danger" size="lg" loading={busy} disabled={busy} onPress={confirmCancel} /></View>
@@ -90,8 +124,25 @@ export default function CustomerJobScreen() {
               : 'Looking for professionals near you…'}
         </Text>
       ) : null}
+      
       {job.agreedAmount && job.agreedCurrency && job.status !== 'CANCELLED' ? (
-        <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 6 }}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
+        <View style={{ marginTop: 6 }}>
+          <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
+          {payment?.status === 'MARKED_BY_WORKER' && (
+            <View style={{ backgroundColor: theme.colors.surfaceVariant, padding: 16, borderRadius: theme.borderRadius.lg, marginTop: 12 }}>
+              <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>Professional requested payment</Text>
+              <Text variant="bodyMedium" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>They marked that you paid them in cash. Please confirm this.</Text>
+              <View style={{ marginTop: 12 }}>
+                <Button title="Confirm Cash Given" variant="primary" loading={busy} disabled={busy} onPress={confirmCash} />
+              </View>
+            </View>
+          )}
+          {payment?.status === 'CONFIRMED' && (
+            <Text variant="bodySmall" weight="bold" color={theme.colors.success} style={{ marginTop: 8 }}>
+              Payment Confirmed
+            </Text>
+          )}
+        </View>
       ) : null}
 
       {open ? (
@@ -124,6 +175,35 @@ export default function CustomerJobScreen() {
         </View>
       ) : null}
 
+      {job.status === 'EN_ROUTE' && trackingState.isTracking && (
+        <View style={{ marginTop: 20, height: 200, borderRadius: theme.borderRadius.xl, overflow: 'hidden' }}>
+          <MapView
+            style={{ flex: 1 }}
+            initialRegion={{
+              latitude: trackingState.customerLocation?.latitude || job.latitude || 24.8607,
+              longitude: trackingState.customerLocation?.longitude || job.longitude || 67.0011,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }}
+          >
+            {(trackingState.customerLocation || (job.latitude && job.longitude)) && (
+              <Marker 
+                coordinate={{ latitude: trackingState.customerLocation?.latitude || job.latitude!, longitude: trackingState.customerLocation?.longitude || job.longitude! }} 
+                title="You" 
+                pinColor="blue" 
+              />
+            )}
+            {trackingState.workerLocation && (
+              <Marker 
+                coordinate={trackingState.workerLocation} 
+                title="Professional" 
+                pinColor="red" 
+              />
+            )}
+          </MapView>
+        </View>
+      )}
+
       {cancelling ? (
         <View style={{ marginTop: 20 }}>
           <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginBottom: 10 }}>Why are you cancelling?</Text>
@@ -139,6 +219,10 @@ export default function CustomerJobScreen() {
         <Text variant="body" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.description}</Text>
       </View>
       <JobMedia media={job.media ?? []} />
+
+      {job.status !== 'CANCELLED' && (
+        <ChangeOrdersList jobId={job.id} viewer="customer" onReloadRequested={reload} />
+      )}
 
       <View style={{ marginTop: 20, gap: 4 }}>
         <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>WHEN AND WHERE</Text>
@@ -156,6 +240,15 @@ export default function CustomerJobScreen() {
           </View>
         </TouchableOpacity>
       ) : null}
+
+      {job.status === 'COMPLETED' && job.assignedWorker && currentUser && !job.reviews?.some(r => r.reviewerId === currentUser.id) && (
+        <ReviewForm 
+          jobId={job.id} 
+          targetId={job.assignedWorker.user.id} 
+          targetName={job.assignedWorker.user.name} 
+          onSubmitted={reload} 
+        />
+      )}
 
       <JobHistory events={job.events ?? []} viewer="customer" locale={locale} />
     </Screen>
