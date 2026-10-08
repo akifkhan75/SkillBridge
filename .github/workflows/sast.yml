@@ -1,0 +1,22 @@
+name: Security Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  sast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # npm audit (Dependency Scan)
+      - name: Dependency Audit
+        run: npm audit --audit-level=high
+
+      # Secret Scan
+      - name: Gitleaks Secret Scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

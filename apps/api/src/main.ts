@@ -7,7 +7,16 @@ import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 import { configureRealtime } from './realtime/redis-io.adapter';
 
+import * as Sentry from '@sentry/node';
+
 async function bootstrap() {
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+    });
+  }
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const isProd = process.env.NODE_ENV === 'production';
 

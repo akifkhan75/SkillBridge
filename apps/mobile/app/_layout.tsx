@@ -11,6 +11,12 @@ import { realtime } from '../src/services/socket';
 import { NotificationsProvider } from '../src/hooks/useNotifications';
 import { useWorkerLocationTracker } from '../src/hooks/useWorkerLocationTracker';
 import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTracker';
+import * as Sentry from '@sentry/react-native';
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'YOUR_SENTRY_DSN',
+  debug: false,
+});
 
 function SocketHandler() {
   const currentUser = useAppSelector(selectCurrentUser);
@@ -81,7 +87,7 @@ function SessionGate({ children }: { children: React.ReactNode }) {
   return restored ? <>{children}</> : null;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const theme = useTheme();
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -122,3 +128,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export default Sentry.wrap(RootLayout);

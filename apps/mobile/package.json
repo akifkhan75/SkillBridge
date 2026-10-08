@@ -26,6 +26,7 @@
     "@react-navigation/drawer": "^7.5.5",
     "@react-navigation/native": "^7.1.16",
     "@reduxjs/toolkit": "^2.8.2",
+    "@sentry/react-native": "~7.11.0",
     "axios": "^1.7.0",
     "expo": "~57.0.27",
     "expo-audio": "~57.0.5",

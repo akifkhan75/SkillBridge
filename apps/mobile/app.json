@@ -80,7 +80,8 @@
           "defaultChannel": "default"
         }
       ],
-      "expo-image"
+      "expo-image",
+      "@sentry/react-native"
     ],
     "experiments": {
       "typedRoutes": true

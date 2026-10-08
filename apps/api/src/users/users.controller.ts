@@ -31,6 +31,12 @@ export class UsersController {
     return this.usersService.updateMe(id, dto);
   }
 
+  @Delete('me')
+  @ApiOperation({ summary: 'Delete own account' })
+  deleteMe(@CurrentUser('id') id: string) {
+    return this.usersService.deleteMe(id);
+  }
+
   @Get('me/favorites')
   @Roles('customer')
   @ApiOperation({ summary: 'Get favorite workers' })
