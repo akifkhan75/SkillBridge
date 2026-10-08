@@ -33,6 +33,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { PaymentsModule } from './payments/payments.module';
+import { SafetyModule } from './safety/safety.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { PaymentsModule } from './payments/payments.module';
     PropertiesModule,
     RecurringJobsModule,
     PaymentsModule,
+    SafetyModule,
   ],
   controllers: [AppController, AppConfigController],
   providers: [
