@@ -14,7 +14,9 @@ export function useCustomerLocationTracker() {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const startTracking = async () => {
-      if (currentUser?.type !== 'customer') {
+      // Location is only collected while a worker is actively on the way (docs 11/13/19),
+      // not from the moment the customer logs in.
+      if (currentUser?.type !== 'customer' || !trackingState.isTracking) {
         return;
       }
 

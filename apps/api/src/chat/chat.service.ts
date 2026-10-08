@@ -1,118 +1,67 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
 import { SendMessageDto } from './dto/send-message.dto';
-import { MarkReadDto } from './dto/mark-read.dto';
 
 @Injectable()
 export class ChatService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getThreadsForUser(userId: string) {
+  getThreadsForUser(userId: string) {
     return this.prisma.chatThread.findMany({
-      where: {
-        participants: {
-          some: { id: userId },
-        },
-      },
+      where: { participants: { some: { id: userId } } },
       include: {
-        participants: {
-          select: { id: true, name: true, profileImageUrl: true },
-        },
-        messages: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-        },
+        participants: { select: { id: true, name: true, profileImageUrl: true } },
+        messages: { take: 1, orderBy: { createdAt: 'desc' } },
       },
       orderBy: { lastMessageAt: 'desc' },
+      take: 100,
     });
   }
 
-  async getThreadsByUserId(userId: string) {
-    return this.prisma.chatThread.findMany({
-      where: {
-        participants: {
-          some: { id: userId },
-        },
-      },
-      include: {
-        participants: {
-          select: { id: true, name: true, profileImageUrl: true },
-        },
-        messages: {
-          take: 1,
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-      orderBy: { lastMessageAt: 'desc' },
+  /** Thread if (and only if) the user participates; 404 otherwise so existence is not leaked. */
+  async requireThread(threadId: string, userId: string) {
+    const thread = await this.prisma.chatThread.findFirst({
+      where: { id: threadId, participants: { some: { id: userId } } },
+      include: { participants: { select: { id: true } } },
     });
+    if (!thread) throw new NotFoundException('Thread not found');
+    return thread;
   }
 
   async getMessages(threadId: string, userId: string) {
-    const thread = await this.prisma.chatThread.findUnique({
-      where: { id: threadId },
-      include: {
-        participants: { select: { id: true } }
-      }
-    });
-
-    if (!thread) {
-      throw new NotFoundException('Thread not found');
-    }
-
-    const isParticipant = thread.participants.some(p => p.id === userId);
-    if (!isParticipant) {
-      throw new NotFoundException('Thread not found'); // 404 to avoid leaking existence
-    }
-
+    await this.requireThread(threadId, userId);
     return this.prisma.chatMessage.findMany({
       where: { threadId },
-      include: {
-        sender: { select: { id: true, name: true } },
-      },
+      include: { sender: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' },
+      take: 200,
     });
   }
 
-  async sendMessage(senderId: string, dto: SendMessageDto) {
-    const thread = await this.prisma.chatThread.findUnique({
-      where: { id: dto.threadId },
-      include: { participants: { select: { id: true } } }
-    });
+  async sendMessage(senderId: string, dto: Pick<SendMessageDto, 'threadId' | 'text'>) {
+    const thread = await this.requireThread(dto.threadId, senderId);
+    const receiver = thread.participants.find((p) => p.id !== senderId);
+    if (!receiver) throw new NotFoundException('Thread not found');
 
-    if (!thread || !thread.participants.some(p => p.id === senderId)) {
-      throw new NotFoundException('Thread not found');
-    }
-
-    const message = await this.prisma.chatMessage.create({
-      data: {
-        threadId: dto.threadId,
-        senderId,
-        receiverId: dto.receiverId,
-        text: dto.text,
-      },
-      include: {
-        sender: { select: { id: true, name: true } },
-      },
-    });
-
-    await this.prisma.chatThread.update({
-      where: { id: dto.threadId },
-      data: { lastMessageAt: new Date() },
-    });
-
+    const [message] = await this.prisma.$transaction([
+      this.prisma.chatMessage.create({
+        data: { threadId: dto.threadId, senderId, receiverId: receiver.id, text: dto.text },
+        include: { sender: { select: { id: true, name: true } } },
+      }),
+      this.prisma.chatThread.update({
+        where: { id: dto.threadId },
+        data: { lastMessageAt: new Date() },
+      }),
+    ]);
     return message;
   }
 
-  async markAsRead(dto: MarkReadDto) {
+  async markAsRead(threadId: string, userId: string) {
+    await this.requireThread(threadId, userId);
     await this.prisma.chatMessage.updateMany({
-      where: {
-        threadId: dto.threadId,
-        receiverId: dto.userId,
-        isRead: false,
-      },
+      where: { threadId, receiverId: userId, isRead: false },
       data: { isRead: true },
     });
-
     return { success: true };
   }
 }

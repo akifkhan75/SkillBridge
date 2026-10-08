@@ -1,19 +1,18 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { AddressesService } from './addresses.service';
+import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('addresses')
 @Controller('addresses')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
 export class AddressesController {
   constructor(private readonly addressesService: AddressesService) {}
 
   @Post()
   @ApiOperation({ summary: 'Create new address' })
-  create(@CurrentUser('id') userId: string, @Body() data: any) {
+  create(@CurrentUser('id') userId: string, @Body() data: CreateAddressDto) {
     return this.addressesService.create(userId, data);
   }
 
@@ -25,7 +24,7 @@ export class AddressesController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update address' })
-  update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() data: any) {
+  update(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() data: UpdateAddressDto) {
     return this.addressesService.update(id, userId, data);
   }
 

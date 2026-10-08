@@ -5,118 +5,57 @@ import { PrismaService } from '../database/prisma.service';
 
 describe('ChatService', () => {
   let service: ChatService;
-
   const mockPrisma = {
-    chatThread: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      update: jest.fn(),
-    },
-    chatMessage: {
-      findMany: jest.fn(),
-      create: jest.fn(),
-      updateMany: jest.fn(),
-    },
+    chatThread: { findMany: jest.fn(), findFirst: jest.fn(), update: jest.fn() },
+    chatMessage: { findMany: jest.fn(), create: jest.fn(), updateMany: jest.fn() },
+    $transaction: jest.fn(async (ops: any[]) => Promise.all(ops)),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        ChatService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
+      providers: [ChatService, { provide: PrismaService, useValue: mockPrisma }],
     }).compile();
+    service = module.get(ChatService);
+  });
+  afterEach(() => jest.resetAllMocks());
+  beforeEach(() => mockPrisma.$transaction.mockImplementation(async (ops: any[]) => Promise.all(ops)));
 
-    service = module.get<ChatService>(ChatService);
+  const thread = { id: 't1', participants: [{ id: 'a' }, { id: 'b' }] };
+
+  it('non-participants get 404 for messages', async () => {
+    mockPrisma.chatThread.findFirst.mockResolvedValue(null);
+    await expect(service.getMessages('t1', 'intruder')).rejects.toThrow(NotFoundException);
+    expect(mockPrisma.chatMessage.findMany).not.toHaveBeenCalled();
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  describe('getThreadsForUser', () => {
-    it('should return threads for a user', async () => {
-      const threads = [{ id: 'thread1', participants: [] }];
-      mockPrisma.chatThread.findMany.mockResolvedValue(threads);
-
-      const result = await service.getThreadsForUser('user1');
-      expect(result).toEqual(threads);
-    });
-  });
-
-  describe('getMessages', () => {
-    it('should return messages for a thread', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user1' }] });
-      const messages = [{ id: 'msg1', text: 'Hello' }];
-      mockPrisma.chatMessage.findMany.mockResolvedValue(messages);
-
-      const result = await service.getMessages('thread1', 'user1');
-      expect(result).toEqual(messages);
-    });
-
-    it('should throw NotFoundException if user is not a participant', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user2' }] });
-      
-      await expect(service.getMessages('thread1', 'user1')).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw NotFoundException for nonexistent thread', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue(null);
-
-      await expect(service.getMessages('nonexistent', 'user1')).rejects.toThrow(NotFoundException);
+  it('thread lookup is scoped to the requesting participant', async () => {
+    mockPrisma.chatThread.findFirst.mockResolvedValue(thread);
+    await service.requireThread('t1', 'a');
+    expect(mockPrisma.chatThread.findFirst.mock.calls[0][0].where).toEqual({
+      id: 't1',
+      participants: { some: { id: 'a' } },
     });
   });
 
-  describe('sendMessage', () => {
-    it('should create a message and update thread', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user1' }, { id: 'user2' }] });
-      
-      const message = { id: 'msg1', text: 'Hello', threadId: 'thread1' };
-      mockPrisma.chatMessage.create.mockResolvedValue(message);
-      mockPrisma.chatThread.update.mockResolvedValue({});
-
-      const result = await service.sendMessage('user1', {
-        threadId: 'thread1',
-        receiverId: 'user2',
-        text: 'Hello',
-      });
-
-      expect(result).toEqual(message);
-      expect(mockPrisma.chatThread.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'thread1' },
-        }),
-      );
-    });
-
-    it('should throw NotFoundException if user is not in thread', async () => {
-      mockPrisma.chatThread.findUnique.mockResolvedValue({ id: 'thread1', participants: [{ id: 'user2' }, { id: 'user3' }] });
-      
-      await expect(service.sendMessage('user1', {
-        threadId: 'thread1',
-        receiverId: 'user2',
-        text: 'Hello',
-      })).rejects.toThrow(NotFoundException);
-    });
+  it('derives the receiver from the thread, not from the client', async () => {
+    mockPrisma.chatThread.findFirst.mockResolvedValue(thread);
+    mockPrisma.chatMessage.create.mockReturnValue(Promise.resolve({ id: 'm1' }));
+    mockPrisma.chatThread.update.mockReturnValue(Promise.resolve({}));
+    await service.sendMessage('a', { threadId: 't1', text: 'hello' });
+    expect(mockPrisma.chatMessage.create.mock.calls[0][0].data).toMatchObject({ senderId: 'a', receiverId: 'b' });
   });
 
-  describe('markAsRead', () => {
-    it('should mark messages as read', async () => {
-      mockPrisma.chatMessage.updateMany.mockResolvedValue({ count: 3 });
+  it('cannot send into a thread you are not in', async () => {
+    mockPrisma.chatThread.findFirst.mockResolvedValue(null);
+    await expect(service.sendMessage('x', { threadId: 't1', text: 'hi' })).rejects.toThrow(NotFoundException);
+    expect(mockPrisma.chatMessage.create).not.toHaveBeenCalled();
+  });
 
-      const result = await service.markAsRead({
-        threadId: 'thread1',
-        userId: 'user1',
-      });
-
-      expect(result).toEqual({ success: true });
-      expect(mockPrisma.chatMessage.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            threadId: 'thread1',
-            receiverId: 'user1',
-            isRead: false,
-          }),
-        }),
-      );
+  it('mark-read only touches messages addressed to the reader', async () => {
+    mockPrisma.chatThread.findFirst.mockResolvedValue(thread);
+    await service.markAsRead('t1', 'a');
+    expect(mockPrisma.chatMessage.updateMany.mock.calls[0][0].where).toEqual({
+      threadId: 't1', receiverId: 'a', isRead: false,
     });
   });
 });

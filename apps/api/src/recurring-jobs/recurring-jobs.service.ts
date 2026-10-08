@@ -1,46 +1,46 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CreateRecurringJobDto } from './dto/recurring-job.dto';
 
 @Injectable()
 export class RecurringJobsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createRecurringJob(propertyId: string, data: any) {
+  private async requireOwnProperty(userId: string, propertyId: string) {
+    const property = await this.prisma.property.findFirst({ where: { id: propertyId, userId }, select: { id: true } });
+    if (!property) throw new NotFoundException('Property not found');
+  }
+
+  async createRecurringJob(userId: string, propertyId: string, dto: CreateRecurringJobDto) {
+    await this.requireOwnProperty(userId, propertyId);
     return this.prisma.recurringJob.create({
-      data: {
-        ...data,
-        propertyId,
-        nextExecutionDate: new Date(data.nextExecutionDate),
-      }
+      data: { ...dto, propertyId, nextExecutionDate: new Date(dto.nextExecutionDate) },
     });
   }
 
-  async getPropertyRecurringJobs(propertyId: string) {
+  async getPropertyRecurringJobs(userId: string, propertyId: string) {
+    await this.requireOwnProperty(userId, propertyId);
     return this.prisma.recurringJob.findMany({
       where: { propertyId },
-      include: { service: true }
+      include: { service: true },
+      take: 50,
     });
   }
 
-  async cancelRecurringJob(id: string) {
-    return this.prisma.recurringJob.update({
-      where: { id },
-      data: { isActive: false }
+  async cancelRecurringJob(userId: string, id: string) {
+    const result = await this.prisma.recurringJob.updateMany({
+      where: { id, property: { userId } },
+      data: { isActive: false },
     });
+    if (result.count === 0) throw new NotFoundException('Recurring job not found');
+    return this.prisma.recurringJob.findUnique({ where: { id } });
   }
 
-  // Admin/System endpoint to fetch all jobs that are due for execution
-  async getDueJobs() {
-    const today = new Date();
+  getDueJobs() {
     return this.prisma.recurringJob.findMany({
-      where: {
-        isActive: true,
-        nextExecutionDate: { lte: today }
-      },
-      include: {
-        property: { include: { user: true } },
-        service: true
-      }
+      where: { isActive: true, nextExecutionDate: { lte: new Date() } },
+      include: { property: { select: { id: true, userId: true } }, service: true },
+      take: 500,
     });
   }
 }

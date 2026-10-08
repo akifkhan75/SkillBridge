@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fixli
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: fixli_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U fixli" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://fixli:ci-password@localhost:5432/fixli_ci?schema=public
+      JWT_SECRET: ci-only-secret-ci-only-secret-ci-only-secret
+      ENABLED_COUNTRIES: PK
+      NODE_ENV: test
+      EXPO_PUBLIC_API_URL: http://localhost:3002/api
+      VITE_API_URL: http://localhost:3002/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # API and app import the compiled shared package (phone/password/country rules).
+      - name: Build shared package
+        run: pnpm --filter @fixli/shared build
+
+      - name: Shared tests
+        run: pnpm --filter @fixli/shared test
+
+      - name: Prisma client + migrations apply cleanly
+        working-directory: apps/api
+        run: |
+          pnpm exec prisma generate
+          pnpm exec prisma migrate deploy
+
+      - name: Schema matches migrations (no drift)
+        working-directory: apps/api
+        run: pnpm exec prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: API unit tests
+        run: pnpm --filter @fixli/api test
+
+      - name: API e2e tests
+        run: pnpm --filter @fixli/api test:e2e
+
+      - name: Mobile tests
+        run: pnpm --filter @fixli/mobile test
+
+      - name: Build API, admin and web
+        run: |
+          pnpm --filter @fixli/api build
+          pnpm --filter admin build
+          pnpm --filter web build
+
+      - name: Lint admin and web
+        run: |
+          pnpm --filter admin lint
+          pnpm --filter web lint

@@ -23,7 +23,8 @@
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down",
     "docker:reset": "docker compose down -v && docker compose up -d",
-    "format": "prettier --write \"**/*.{ts,tsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "prettier": "^3.3.0",

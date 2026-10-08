@@ -1,307 +1,356 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, Image, Alert } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Image, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as ImagePicker from 'expo-image-picker';
-import { useAppDispatch } from '../../src/hooks/useRedux';
-import { analyzeAndMatch } from '../../src/store/customerFlowSlice';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/hooks/useTheme';
+import { useI18n } from '../../src/hooks/useI18n';
+import { useCountry } from '../../src/hooks/useCountry';
+import { useApi, friendlyError } from '../../src/hooks/useApi';
+import { usePhotoUpload, type Uploaded } from '../../src/hooks/usePhotoUpload';
+import { Screen } from '../../src/components/ds/Screen';
 import { Text } from '../../src/components/ds/Text';
 import { Button } from '../../src/components/ds/Button';
+import { TextInput } from '../../src/components/ds/TextInput';
 import { ChipChoice } from '../../src/components/ds/ChipChoice';
-import { VoiceField } from '../../src/forms/components/VoiceField';
+import { PhotoButtons } from '../../src/components/ds/PhotoButtons';
+import { ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
+import { VoiceField, type VoiceValue } from '../../src/forms/components/VoiceField';
+import { humanize, localizedName } from '../../src/utils/catalog';
+import { ApiError } from '../../src/services/api';
+import * as api from '../../src/services/api';
 
-export default function RequestServiceScreen() {
-  const { isEmergency } = useLocalSearchParams();
-  const emergencyMode = isEmergency === 'true';
-  const dispatch = useAppDispatch();
-  const theme = useTheme();
-  
-  const [step, setStep] = useState(emergencyMode ? 1 : 0);
-  const [voiceDescription, setVoiceDescription] = useState('');
-  const [issues, setIssues] = useState<string[]>([]);
-  const [imageUri, setImageUri] = useState<string | null>(null);
-  const [imageBase64, setImageBase64] = useState<string | undefined>(undefined);
-  const [when, setWhen] = useState<string[]>(['now']);
-  const [address, setAddress] = useState<string[]>(['home']);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+type When = 'NOW' | 'TODAY' | 'TOMORROW' | 'SCHEDULED';
+type Slot = 'MORNING' | 'AFTERNOON' | 'EVENING';
+const STEPS = ['What', 'Photos', 'When', 'Where', 'Review'] as const;
+const DRAFT_KEY = '@fixli/request-draft';
+const MAX_PHOTOS = 4;
 
-  useEffect(() => {
-    AsyncStorage.getItem('@draft_request_service').then((data) => {
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (parsed.step !== undefined && !emergencyMode) setStep(parsed.step);
-          if (parsed.voiceDescription) setVoiceDescription(parsed.voiceDescription);
-          if (parsed.issues) setIssues(parsed.issues);
-          if (parsed.when) setWhen(parsed.when);
-          if (parsed.address) setAddress(parsed.address);
-        } catch(e){}
-      }
-    }).catch(() => {});
-  }, [emergencyMode]);
-
-  useEffect(() => {
-    const draft = { step, voiceDescription, issues, when, address };
-    AsyncStorage.setItem('@draft_request_service', JSON.stringify(draft)).catch(() => {});
-  }, [step, voiceDescription, issues, when, address]);
-
-  const COMMON_ISSUES = [
-    { id: 'leaking_tap', label: 'Leaking tap' },
-    { id: 'blocked_drain', label: 'Blocked drain' },
-    { id: 'no_power', label: 'No power' },
-    { id: 'appliance', label: 'Appliance broken' },
-    { id: 'other', label: 'Other' },
-  ];
-
-  const WHEN_OPTIONS = [
-    { id: 'now', label: 'Now' },
-    { id: 'today', label: 'Today' },
-    { id: 'tomorrow', label: 'Tomorrow' },
-    { id: 'choose', label: 'Choose a day' },
-  ];
-
-  const ADDRESS_OPTIONS = [
-    { id: 'home', label: 'Home (123 Main St)' },
-    { id: 'work', label: 'Work (456 Office Pkwy)' },
-    { id: 'new', label: '+ New Location' },
-  ];
-
-  const pickImage = async (useCamera: boolean = false) => {
-    let result;
-    if (useCamera) {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission Denied', 'Camera permission is required.');
-        return;
-      }
-      result = await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5 });
-    } else {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission Denied', 'Gallery permission is required.');
-        return;
-      }
-      result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        base64: true,
-        quality: 0.5,
-      });
-    }
-
-    if (!result.canceled && result.assets[0]) {
-      setImageUri(result.assets[0].uri);
-      if (result.assets[0].base64) {
-        setImageBase64(`data:image/jpeg;base64,${result.assets[0].base64}`);
-      }
-    }
-  };
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true);
-    try {
-      const location = address.includes('home') ? '123 Main St' : 'New Location';
-      const description = [voiceDescription, issues.join(', ')].filter(Boolean).join(' - ') || 'General issue';
-      
-      await dispatch(analyzeAndMatch({
-        description: emergencyMode ? `EMERGENCY: ${description}` : description,
-        location,
-        imageBase64,
-      })).unwrap();
-      
-      await AsyncStorage.removeItem('@draft_request_service');
-      router.back();
-    } catch (error: any) {
-      Alert.alert('Analysis Failed', error?.message || 'Something went wrong.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const nextStep = () => setStep((s) => Math.min(4, s + 1));
-  const prevStep = () => {
-    if (step === 0) router.back();
-    else setStep((s) => Math.max(0, s - 1));
-  };
-
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: emergencyMode ? theme.colors.sos : theme.colors.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={prevStep}>
-          <Ionicons name="arrow-back" size={28} color={emergencyMode ? '#FFF' : theme.colors.textPrimary} />
-        </TouchableOpacity>
-        <Text variant="h3" weight="bold" style={{ color: emergencyMode ? '#FFF' : theme.colors.textPrimary }}>
-          {emergencyMode ? 'Emergency SOS' : `Step ${step + 1} of 5`}
-        </Text>
-        <View style={{ width: 44 }} />
-      </View>
-
-      <ScrollView contentContainerStyle={[styles.content, { padding: theme.spacing.xl }]}>
-        
-        {step === 0 && (
-          <View style={styles.stepContainer}>
-            <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: theme.spacing.xl }}>
-              What's the problem?
-            </Text>
-            
-            <VoiceField 
-              value={voiceDescription} 
-              onChange={setVoiceDescription} 
-              label="Describe the issue" 
-            />
-            
-            <Text variant="bodySmall" color={theme.colors.textTertiary} style={{ marginVertical: theme.spacing.lg }}>
-              Or choose common issues:
-            </Text>
-            <ChipChoice options={COMMON_ISSUES} selectedIds={issues} onChange={setIssues} multiSelect />
-          </View>
-        )}
-
-        {step === 1 && (
-          <View style={styles.stepContainer}>
-            <Text variant="h1" weight="bold" color={emergencyMode ? '#FFF' : theme.colors.textPrimary} style={{ marginBottom: theme.spacing.md }}>
-              Show us
-            </Text>
-            <Text variant="body" color={emergencyMode ? '#FFF' : theme.colors.textSecondary} style={{ marginBottom: theme.spacing['2xl'] }}>
-              A photo helps the professional bring the right tools.
-            </Text>
-            
-            {imageUri ? (
-              <View style={[styles.imagePreviewContainer, { borderRadius: theme.borderRadius.xl }]}>
-                <Image source={{ uri: imageUri }} style={styles.imagePreview} />
-                <TouchableOpacity style={styles.removeImageBtn} onPress={() => { setImageUri(null); setImageBase64(undefined); }}>
-                  <Ionicons name="close-circle" size={32} color={theme.colors.error} />
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={{ gap: theme.spacing.lg }}>
-                <Button 
-                  title="Take a photo" 
-                  variant="primary" 
-                  size="lg" 
-                  leftIcon={<Ionicons name="camera" size={24} color="#FFF" />} 
-                  onPress={() => pickImage(true)} 
-                />
-                <Button 
-                  title="Choose from gallery" 
-                  variant="secondary" 
-                  size="lg" 
-                  leftIcon={<Ionicons name="images" size={24} color={theme.colors.textPrimary} />} 
-                  onPress={() => pickImage(false)} 
-                />
-              </View>
-            )}
-          </View>
-        )}
-
-        {step === 2 && (
-          <View style={styles.stepContainer}>
-            <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: theme.spacing['2xl'] }}>
-              When do you need them?
-            </Text>
-            <ChipChoice options={WHEN_OPTIONS} selectedIds={when} onChange={setWhen} />
-          </View>
-        )}
-
-        {step === 3 && (
-          <View style={styles.stepContainer}>
-            <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: theme.spacing['2xl'] }}>
-              Where?
-            </Text>
-            <ChipChoice options={ADDRESS_OPTIONS} selectedIds={address} onChange={setAddress} />
-          </View>
-        )}
-
-        {step === 4 && (
-          <View style={styles.stepContainer}>
-            <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: theme.spacing.xl }}>
-              Review
-            </Text>
-            
-            <View style={[styles.summaryCard, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}>
-              <View style={styles.summaryRow}>
-                <Ionicons name="construct" size={20} color={theme.colors.textSecondary} />
-                <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                  {[voiceDescription, issues.join(', ')].filter(Boolean).join(' - ') || 'General issue'}
-                </Text>
-                <TouchableOpacity onPress={() => setStep(0)}>
-                  <Text variant="bodySmall" color={theme.colors.primary}>Edit</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              
-              <View style={styles.summaryRow}>
-                <Ionicons name="calendar" size={20} color={theme.colors.textSecondary} />
-                <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                  {when[0]?.toUpperCase() || 'NOW'}
-                </Text>
-                <TouchableOpacity onPress={() => setStep(2)}>
-                  <Text variant="bodySmall" color={theme.colors.primary}>Edit</Text>
-                </TouchableOpacity>
-              </View>
-              
-              <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-              
-              <View style={styles.summaryRow}>
-                <Ionicons name="location" size={20} color={theme.colors.textSecondary} />
-                <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ flex: 1, marginLeft: theme.spacing.md }}>
-                  {address.includes('home') ? '123 Main St' : 'New Location'}
-                </Text>
-                <TouchableOpacity onPress={() => setStep(3)}>
-                  <Text variant="bodySmall" color={theme.colors.primary}>Edit</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={{ marginTop: theme.spacing['3xl'] }}>
-              <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary} align="center" style={{ marginBottom: theme.spacing.xs }}>
-                Estimated Price
-              </Text>
-              <Text variant="h1" weight="extrabold" color={theme.colors.textPrimary} align="center">
-                $40 - $80
-              </Text>
-            </View>
-
-          </View>
-        )}
-
-      </ScrollView>
-
-      <View style={[styles.footer, { padding: theme.spacing.xl, borderTopColor: theme.colors.border, borderTopWidth: 1 }]}>
-        {step < 4 ? (
-          <Button 
-            title="Continue" 
-            variant={emergencyMode ? 'secondary' : 'primary'} 
-            size="lg" 
-            onPress={nextStep} 
-          />
-        ) : (
-          <Button 
-            title="Send Request" 
-            variant="primary" 
-            size="lg" 
-            loading={isSubmitting}
-            onPress={handleSubmit} 
-          />
-        )}
-      </View>
-    </SafeAreaView>
-  );
+interface Draft {
+  step: number;
+  categoryId?: string;
+  issueCodes: string[];
+  description: string;
+  voice: VoiceValue;
+  photos: Uploaded[];
+  when: When;
+  date?: string;
+  slot?: Slot;
+  addressId?: string;
+  /** Generated once per request: resending after a dropped connection never creates a second job. */
+  idempotencyKey: string;
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 10 },
-  backButton: { width: 44, height: 44, justifyContent: 'center', alignItems: 'flex-start' },
-  content: { flexGrow: 1 },
-  stepContainer: { flex: 1 },
-  imagePreviewContainer: { width: '100%', height: 250, overflow: 'hidden', position: 'relative' },
-  imagePreview: { width: '100%', height: '100%', resizeMode: 'cover' },
-  removeImageBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: '#FFF', borderRadius: 16 },
-  summaryCard: { padding: 20, gap: 16 },
-  summaryRow: { flexDirection: 'row', alignItems: 'center' },
-  divider: { height: 1, width: '100%' },
-  footer: { backgroundColor: 'transparent' },
-});
+const newKey = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+const pad = (n: number) => String(n).padStart(2, '0');
+const isoLocal = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+export default function RequestServiceScreen() {
+  const params = useLocalSearchParams<{ categoryId?: string; issue?: string; isEmergency?: string }>();
+  const emergency = params.isEmergency === 'true';
+  const theme = useTheme();
+  const { t, locale } = useI18n();
+  const { config: countryConfig } = useCountry();
+  const catalog = useApi(api.getCatalog);
+  const addresses = useApi(api.getAddresses);
+  useFocusEffect(useCallback(() => { addresses.reload(); }, [addresses.reload]));
+
+  const [d, setD] = useState<Draft>(() => ({
+    step: 0, categoryId: params.categoryId, issueCodes: params.issue ? [params.issue] : [], description: '',
+    voice: { transcript: '' }, photos: [], when: emergency ? 'NOW' : 'TODAY', idempotencyKey: newKey(),
+  }));
+  const [restored, setRestored] = useState(false);
+  const [analysis, setAnalysis] = useState<api.AnalysisResult | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const photoUp = usePhotoUpload('JOB_PHOTO');
+  const analyzedFor = useRef('');
+
+  const set = (patch: Partial<Draft>) => setD((cur) => ({ ...cur, ...patch }));
+
+  // Restore an unfinished request (a dropped call or app switch never loses it) unless this
+  // visit came from a different starting point (a tile, SOS).
+  useEffect(() => {
+    (async () => {
+      const raw = await AsyncStorage.getItem(DRAFT_KEY).catch(() => null);
+      if (raw && !emergency) {
+        try {
+          const saved = JSON.parse(raw) as Draft;
+          const sameStart = !params.categoryId || saved.categoryId === params.categoryId;
+          if (sameStart) setD({ ...saved, step: Math.min(saved.step, 3) });
+        } catch { /* ignore broken draft */ }
+      }
+      setRestored(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (restored && !emergency) AsyncStorage.setItem(DRAFT_KEY, JSON.stringify(d)).catch(() => undefined);
+  }, [d, restored, emergency]);
+
+  // Pick the default saved address automatically.
+  useEffect(() => {
+    if (!d.addressId && addresses.data?.length) set({ addressId: (addresses.data.find((a) => a.isDefault) ?? addresses.data[0]).id });
+    if (d.addressId && addresses.data && !addresses.data.some((a) => a.id === d.addressId)) set({ addressId: addresses.data[0]?.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses.data]);
+
+  const category = catalog.data?.find((c) => c.id === d.categoryId);
+  const catName = (c: api.CatalogCategory) => localizedName({ name: c.translations?.en?.name ?? humanize(c.name), translations: c.translations }, locale);
+  const issueText = category ? category.issues.filter((i) => d.issueCodes.includes(i.code)).map((i) => localizedName(i, locale)).join(', ') : '';
+  const address = addresses.data?.find((a) => a.id === d.addressId);
+
+  const stepValid = [
+    !!category && (d.issueCodes.length > 0 || d.description.trim().length >= 3 || !!d.voice.audioUploadId),
+    true,
+    d.when !== 'SCHEDULED' || (!!d.date && !!d.slot),
+    !!address,
+    true,
+  ];
+
+  // Ask the AI once per distinct input when reaching the review step. It only ever suggests.
+  useEffect(() => {
+    if (d.step !== 4 || !category) return;
+    const signature = JSON.stringify([d.categoryId, d.issueCodes, d.description, d.voice.transcript, d.photos.map((p) => p.id)]);
+    if (analyzedFor.current === signature) return;
+    analyzedFor.current = signature;
+    setAnalyzing(true);
+    api.analyzeRequest({
+      categoryId: d.categoryId, issueCodes: d.issueCodes,
+      description: [d.description, d.voice.transcript].filter(Boolean).join('. ') || undefined,
+      photoUploadIds: d.photos.map((p) => p.id),
+    }).then(setAnalysis).catch(() => setAnalysis(null)).finally(() => setAnalyzing(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d.step]);
+
+  const days = useMemo(() => Array.from({ length: 14 }, (_, i) => {
+    const day = new Date();
+    day.setDate(day.getDate() + i);
+    return {
+      id: isoLocal(day),
+      label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : new Intl.DateTimeFormat(locale, { weekday: 'short', day: 'numeric', month: 'short' }).format(day),
+    };
+  }), [locale]);
+
+  const addPhoto = async (src: 'camera' | 'library') => {
+    const up = await photoUp.run(src);
+    if (up) set({ photos: [...d.photos, up].slice(0, MAX_PHOTOS) });
+  };
+
+  const submit = async () => {
+    if (!category || !address) return;
+    setSubmitting(true);
+    setError(undefined);
+    try {
+      const job = await api.createJob({
+        categoryId: category.id,
+        issueCodes: d.issueCodes,
+        description: d.description.trim() || undefined,
+        photoUploadIds: d.photos.map((p) => p.id),
+        audioUploadId: d.voice.audioUploadId,
+        audioTranscript: d.voice.audioUploadId ? d.voice.transcript.trim() || undefined : undefined,
+        addressId: address.id,
+        when: d.when,
+        date: d.when === 'SCHEDULED' ? d.date : undefined,
+        timeSlot: d.when === 'SCHEDULED' || d.when === 'TOMORROW' ? d.slot : undefined,
+        isEmergency: emergency || undefined,
+        analysisId: analysis?.analysisId ?? undefined,
+        idempotencyKey: d.idempotencyKey,
+      });
+      await AsyncStorage.removeItem(DRAFT_KEY).catch(() => undefined);
+      router.replace(`/(customer)/job/${job.id}` as any);
+    } catch (e) {
+      setError(e instanceof ApiError
+        ? e.message
+        : "No connection right now. Your request is saved on this phone. Tap Send again when you're back online.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const back = () => (d.step === 0 ? router.back() : set({ step: d.step - 1 }));
+  const next = () => set({ step: Math.min(4, d.step + 1) });
+
+  if (catalog.loading && !catalog.data) return <Screen title="Get help" back><LoadingState /></Screen>;
+  if (catalog.error && !catalog.data) return <Screen title="Get help" back><ErrorState message={catalog.error} onRetry={catalog.reload} /></Screen>;
+
+  const emergencyCard = (strong: boolean) => (
+    <View style={{ backgroundColor: theme.colors.sos + (strong ? '22' : '12'), borderColor: theme.colors.sos, borderWidth: strong ? 1.5 : 0, borderRadius: 16, padding: 16, marginBottom: 20 }} accessibilityRole="alert">
+      <Text variant="bodyLarge" weight="bold" color={theme.colors.sos}>If anyone is in danger, call for help now</Text>
+      <Text variant="bodySmall" color={theme.colors.textPrimary} style={{ marginTop: 4, marginBottom: 12 }}>
+        Fixli connects you with repair professionals. It is not an emergency service. For fire, gas, smoke, an electric shock or an injury, call:
+      </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+        {countryConfig.emergencyNumbers.map((n) => (
+          <TouchableOpacity key={n.number} onPress={() => Linking.openURL(`tel:${n.number}`)} accessibilityRole="button" accessibilityLabel={`Call ${n.label}, ${n.number}`}
+            style={{ backgroundColor: theme.colors.sos, borderRadius: 12, paddingHorizontal: 16, minHeight: 48, justifyContent: 'center', flexDirection: 'row', alignItems: 'center' }}>
+            <Ionicons name="call" size={18} color="#FFF" />
+            <Text variant="body" weight="bold" color="#FFF" style={{ marginStart: 8 }}>{n.label} {n.number}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  const footer = d.step < 4
+    ? <Button title={d.step === 1 && d.photos.length === 0 ? 'Skip for now' : 'Continue'} variant="primary" size="lg" disabled={!stepValid[d.step]} onPress={next} />
+    : <Button title="Send request" variant="primary" size="lg" loading={submitting} disabled={submitting || !stepValid.every(Boolean)} onPress={submit} />;
+
+  return (
+    <Screen footer={footer}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+        <TouchableOpacity onPress={back} accessibilityRole="button" accessibilityLabel="Back" style={{ width: 44, height: 44, justifyContent: 'center' }}>
+          <Ionicons name="arrow-back" size={26} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+        <Text variant="bodySmall" weight="semibold" color={emergency ? theme.colors.sos : theme.colors.textSecondary} style={{ flex: 1 }}>
+          {emergency ? 'Urgent help' : `Step ${d.step + 1} of ${STEPS.length}`}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 24 }} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: 5, now: d.step + 1 }}>
+        {STEPS.map((s, i) => <View key={s} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= d.step ? (emergency ? theme.colors.sos : theme.colors.primary) : theme.colors.border }} />)}
+      </View>
+
+      {emergency && d.step < 4 ? emergencyCard(false) : null}
+
+      {d.step === 0 ? (
+        <View>
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 16 }}>What needs fixing?</Text>
+          {!params.categoryId || !category ? (
+            <>
+              <Text variant="bodySmall" weight="medium" color={theme.colors.textSecondary} style={{ marginBottom: 8 }}>Type of help</Text>
+              <ChipChoice options={(catalog.data ?? []).map((c) => ({ id: c.id, label: catName(c) }))} selectedIds={d.categoryId ? [d.categoryId] : []}
+                onChange={(ids) => set({ categoryId: ids[0], issueCodes: [] })} />
+            </>
+          ) : (
+            <Text variant="bodyLarge" weight="semibold" color={theme.colors.primary} style={{ marginBottom: 4 }}>{catName(category)}</Text>
+          )}
+          {category ? (
+            <>
+              <Text variant="bodySmall" weight="medium" color={theme.colors.textSecondary} style={{ marginTop: 20, marginBottom: 8 }}>What is the problem? (tap all that apply)</Text>
+              <ChipChoice multiSelect options={category.issues.map((i) => ({ id: i.code, label: localizedName(i, locale) }))} selectedIds={d.issueCodes} onChange={(ids) => set({ issueCodes: ids })} />
+              <View style={{ marginTop: 24 }}>
+                <VoiceField value={d.voice} onChange={(voice) => set({ voice })} locale={locale} />
+              </View>
+              <View style={{ marginTop: 20 }}>
+                <TextInput label="Or write a few words (optional)" placeholder="e.g. water drips under the kitchen sink" value={d.description} onChangeText={(v) => set({ description: v })} multiline maxLength={2000} style={{ minHeight: 70, textAlignVertical: 'top' }} />
+              </View>
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
+      {d.step === 1 ? (
+        <View>
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Show us</Text>
+          <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 6, marginBottom: 20 }}>A photo helps the professional understand the problem and bring the right tools.</Text>
+          {d.photos.length ? (
+            <ScrollView horizontal style={{ marginBottom: 16 }} showsHorizontalScrollIndicator={false}>
+              {d.photos.map((p) => (
+                <View key={p.id} style={{ marginEnd: 10 }}>
+                  <Image source={{ uri: p.localUri }} style={{ width: 120, height: 120, borderRadius: 14, backgroundColor: theme.colors.surface }} accessibilityLabel="Photo of the problem" />
+                  <TouchableOpacity onPress={() => set({ photos: d.photos.filter((x) => x.id !== p.id) })} accessibilityRole="button" accessibilityLabel="Remove photo"
+                    style={{ position: 'absolute', top: 4, end: 4, backgroundColor: '#000A', borderRadius: 14, padding: 2 }}>
+                    <Ionicons name="close" size={20} color="#FFF" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+          ) : null}
+          {d.photos.length < MAX_PHOTOS ? <PhotoButtons onPick={addPhoto} busy={photoUp.busy} error={photoUp.error} denied={photoUp.denied} /> : <Text variant="bodySmall" color={theme.colors.textSecondary}>That's the maximum of {MAX_PHOTOS} photos.</Text>}
+        </View>
+      ) : null}
+
+      {d.step === 2 ? (
+        <View>
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 20 }}>When do you need help?</Text>
+          <ChipChoice options={[{ id: 'NOW', label: 'Now' }, { id: 'TODAY', label: 'Today' }, { id: 'TOMORROW', label: 'Tomorrow' }, { id: 'SCHEDULED', label: 'Choose a day' }]}
+            selectedIds={[d.when]} onChange={(ids) => ids[0] && set({ when: ids[0] as When, ...(ids[0] === 'SCHEDULED' ? {} : { date: undefined }) })} />
+          {d.when === 'SCHEDULED' ? (
+            <>
+              <Text variant="bodySmall" weight="medium" color={theme.colors.textSecondary} style={{ marginTop: 24, marginBottom: 8 }}>Day</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <ChipChoice options={days} selectedIds={d.date ? [d.date] : []} onChange={(ids) => set({ date: ids[0] })} />
+              </ScrollView>
+            </>
+          ) : null}
+          {d.when === 'SCHEDULED' || d.when === 'TOMORROW' ? (
+            <>
+              <Text variant="bodySmall" weight="medium" color={theme.colors.textSecondary} style={{ marginTop: 24, marginBottom: 8 }}>Time of day{d.when === 'TOMORROW' ? ' (optional)' : ''}</Text>
+              <ChipChoice options={[{ id: 'MORNING', label: 'Morning (8–12)' }, { id: 'AFTERNOON', label: 'Afternoon (12–5)' }, { id: 'EVENING', label: 'Evening (5–9)' }]}
+                selectedIds={d.slot ? [d.slot] : []} onChange={(ids) => set({ slot: ids[0] as Slot | undefined })} />
+            </>
+          ) : null}
+        </View>
+      ) : null}
+
+      {d.step === 3 ? (
+        <View>
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 8 }}>Where?</Text>
+          <Text variant="body" color={theme.colors.textSecondary} style={{ marginBottom: 20 }}>Professionals only see your area until you book one of them.</Text>
+          {addresses.loading && !addresses.data ? <LoadingState /> : (addresses.data ?? []).map((a) => {
+            const selected = a.id === d.addressId;
+            return (
+              <TouchableOpacity key={a.id} onPress={() => set({ addressId: a.id })} accessibilityRole="radio" accessibilityState={{ selected }}
+                style={{ borderWidth: 1.5, borderColor: selected ? theme.colors.primary : theme.colors.border, backgroundColor: selected ? theme.colors.primary + '10' : theme.colors.surface, borderRadius: 16, padding: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={24} color={selected ? theme.colors.primary : theme.colors.textTertiary} />
+                <View style={{ flex: 1, marginStart: 12 }}>
+                  <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary}>{a.label ?? 'Address'}</Text>
+                  <Text variant="bodySmall" color={theme.colors.textSecondary}>{[a.buildingDetail, a.streetAddress, a.area, a.city].filter(Boolean).join(', ')}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          <Button title={addresses.data?.length ? 'Add another address' : 'Add your address'} variant={addresses.data?.length ? 'secondary' : 'primary'} size="lg"
+            onPress={() => router.push('/address-edit' as any)} leftIcon={<Ionicons name="add" size={22} color={addresses.data?.length ? theme.colors.primary : '#FFF'} />} />
+        </View>
+      ) : null}
+
+      {d.step === 4 && category ? (
+        <View>
+          <Text variant="h1" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 20 }}>Check and send</Text>
+          {analysis?.safety.lifeThreatening ? emergencyCard(true) : null}
+
+          {analyzing ? <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginBottom: 12 }}>Looking at your request…</Text> : null}
+          {analysis?.suggestion && analysis.suggestion.categoryId !== d.categoryId && analysis.suggestion.confidence >= 0.6 ? (() => {
+            const s = catalog.data?.find((c) => c.id === analysis.suggestion!.categoryId);
+            return s ? (
+              <View style={{ backgroundColor: theme.colors.primary + '12', borderRadius: 16, padding: 14, marginBottom: 16 }}>
+                <Text variant="body" color={theme.colors.textPrimary}>✨ This sounds like <Text variant="body" weight="bold" color={theme.colors.textPrimary}>{catName(s)}</Text>.</Text>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <Button title={`Switch to ${catName(s)}`} size="sm" variant="primary" onPress={() => set({ categoryId: s.id, issueCodes: analysis.suggestion!.issueCodes })} />
+                  <Button title="Keep mine" size="sm" variant="ghost" onPress={() => setAnalysis({ ...analysis, suggestion: null })} />
+                </View>
+              </View>
+            ) : null;
+          })() : null}
+
+          {[
+            { step: 0, icon: 'construct' as const, title: catName(category), body: [issueText, d.description.trim(), d.voice.transcript.trim()].filter(Boolean).join(' · ') || (d.voice.audioUploadId ? 'Voice note attached' : '') },
+            { step: 1, icon: 'camera' as const, title: d.photos.length ? `${d.photos.length} photo${d.photos.length > 1 ? 's' : ''}` : 'No photos', body: d.voice.audioUploadId ? 'Voice note attached' : '' },
+            { step: 2, icon: 'calendar' as const, title: d.when === 'NOW' ? 'Now' : d.when === 'TODAY' ? 'Today' : d.when === 'TOMORROW' ? 'Tomorrow' : days.find((x) => x.id === d.date)?.label ?? '', body: d.slot ? { MORNING: 'Morning', AFTERNOON: 'Afternoon', EVENING: 'Evening' }[d.slot] : '' },
+            { step: 3, icon: 'location' as const, title: address?.label ?? 'Address', body: address ? [address.streetAddress, address.area, address.city].filter(Boolean).join(', ') : '' },
+          ].map((row) => (
+            <TouchableOpacity key={row.step} onPress={() => set({ step: row.step })} accessibilityRole="button" accessibilityLabel={`${row.title}. ${row.body}. Change`}
+              style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.surface, borderRadius: 16, padding: 16, marginBottom: 10 }}>
+              <Ionicons name={row.icon} size={22} color={theme.colors.primary} />
+              <View style={{ flex: 1, marginHorizontal: 12 }}>
+                <Text variant="body" weight="semibold" color={theme.colors.textPrimary}>{row.title}</Text>
+                {row.body ? <Text variant="bodySmall" color={theme.colors.textSecondary} numberOfLines={3}>{row.body}</Text> : null}
+              </View>
+              <Text variant="bodySmall" weight="semibold" color={theme.colors.primary}>Change</Text>
+            </TouchableOpacity>
+          ))}
+
+          <View style={{ marginTop: 16, flexDirection: 'row', alignItems: 'flex-start' }}>
+            <Ionicons name="pricetag-outline" size={20} color={theme.colors.textSecondary} />
+            <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ flex: 1, marginStart: 8 }}>
+              You will see each professional's price before you choose. Nothing is charged until you agree.
+            </Text>
+          </View>
+          {error ? <Text variant="bodySmall" color={theme.colors.error} accessibilityRole="alert" style={{ marginTop: 16 }}>{error}</Text> : null}
+        </View>
+      ) : null}
+    </Screen>
+  );
+}

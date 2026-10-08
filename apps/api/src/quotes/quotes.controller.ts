@@ -1,38 +1,33 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { QuotesService } from './quotes.service';
+import { CreateQuoteDto, DecideDto } from './dto/quote.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('quotes')
-@Controller('quotes')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@Controller('quotes')
 export class QuotesController {
   constructor(private readonly quotesService: QuotesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Submit a new quote (Workers only)' })
-  create(@CurrentUser('id') userId: string, @CurrentUser('type') userType: string, @Body() data: any) {
-    if (userType !== 'worker') throw new ForbiddenException('Only workers can create quotes');
-    return this.quotesService.create(userId, data);
+  @Roles('worker')
+  @ApiOperation({ summary: 'Submit a quote for a job assigned to you (workers)' })
+  create(@CurrentUser('id') userId: string, @Body() dto: CreateQuoteDto) {
+    return this.quotesService.create(userId, dto);
   }
 
   @Get('job/:jobId')
-  @ApiOperation({ summary: 'Get all quotes for a job' })
-  findByJob(@Param('jobId') jobId: string) {
-    return this.quotesService.findByJob(jobId);
+  @ApiOperation({ summary: 'Quotes for a job you are part of' })
+  findByJob(@Param('jobId') jobId: string, @CurrentUser() user: { id: string; type: string }) {
+    return this.quotesService.findByJob(jobId, user);
   }
 
   @Patch(':id/status')
-  @ApiOperation({ summary: 'Approve or reject quote (Customers only)' })
-  updateStatus(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('type') userType: string,
-    @Body('status') status: string
-  ) {
-    if (userType !== 'customer') throw new ForbiddenException('Only customers can approve quotes');
-    return this.quotesService.updateStatus(id, userId, status);
+  @Roles('customer')
+  @ApiOperation({ summary: 'Approve or reject a pending quote (customer)' })
+  updateStatus(@Param('id') id: string, @CurrentUser('id') userId: string, @Body() dto: DecideDto) {
+    return this.quotesService.updateStatus(id, userId, dto.status);
   }
 }

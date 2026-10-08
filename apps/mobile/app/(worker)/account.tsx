@@ -1,98 +1,88 @@
 import React from 'react';
-import { View, SafeAreaView, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppSelector, useAppDispatch } from '../../src/hooks/useRedux';
+import { formatPhoneDisplay } from '@fixli/shared';
+import { useAppDispatch, useAppSelector } from '../../src/hooks/useRedux';
 import { selectCurrentUser, logoutUser } from '../../src/store/authSlice';
+import { selectAppearance } from '../../src/store/uiSlice';
 import { useTheme } from '../../src/hooks/useTheme';
+import { useI18n } from '../../src/hooks/useI18n';
+import { useWorkerMe } from '../../src/hooks/useWorkerMe';
+import { Screen } from '../../src/components/ds/Screen';
 import { Text } from '../../src/components/ds/Text';
 import { Avatar } from '../../src/components/ds/Avatar';
+import { Button } from '../../src/components/ds/Button';
+import { GroupedList } from '../../src/components/ds/GroupedList';
+import { ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
+
+const LANG_LABEL = { en: 'English', ur: 'اردو', ar: 'العربية' } as const;
+const APPEARANCE_LABEL = { system: 'Automatic', light: 'Light', dark: 'Dark' } as const;
+const STATUS: Record<string, { text: string; color: 'success' | 'warning' | 'error' | 'textSecondary' }> = {
+  ACTIVE: { text: 'Approved', color: 'success' },
+  PENDING_REVIEW: { text: 'Being checked', color: 'warning' },
+  ONBOARDING: { text: 'Finish your profile', color: 'warning' },
+  REJECTED: { text: 'Not approved', color: 'error' },
+  SUSPENDED: { text: 'Suspended', color: 'error' },
+  INACTIVE: { text: 'Inactive', color: 'textSecondary' },
+};
 
 export default function WorkerAccountScreen() {
-  const dispatch = useAppDispatch();
-  const currentUser = useAppSelector(selectCurrentUser);
   const theme = useTheme();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(selectCurrentUser);
+  const appearance = useAppSelector(selectAppearance);
+  const { locale } = useI18n();
+  const { data: w, loading, error, reload } = useWorkerMe();
+  const go = (path: string) => () => router.push(path as any);
 
-  const MENU_GROUPS = [
-    [
-      { id: 'portfolio', label: 'My Portfolio', icon: 'images', value: '3 Projects' },
-      { id: 'reviews', label: 'Reviews', icon: 'star', value: '4.8' },
-    ],
-    [
-      { id: 'payouts', label: 'Bank Details', icon: 'business', value: 'Ending in 1234' },
-      { id: 'docs', label: 'Verification Docs', icon: 'document-text', value: 'Verified' },
-    ],
-    [
-      { id: 'language', label: 'Language', icon: 'language', value: 'English' },
-      { id: 'appearance', label: 'Appearance', icon: 'moon', value: 'Dark' },
-    ],
-    [
-      { id: 'help', label: 'Help / Support', icon: 'help-circle', value: null },
-    ]
-  ];
+  if (loading && !w) return <Screen title="Account"><LoadingState /></Screen>;
+  if (error && !w) return <Screen title="Account"><ErrorState message={error} onRetry={reload} /></Screen>;
+  if (!w) return null;
+
+  const st = STATUS[w.activationStatus] ?? STATUS.INACTIVE;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Account</Text>
-      </View>
-      
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.profileCard}>
-          <Avatar name={currentUser?.name || 'Ahmed K.'} imageUrl={currentUser?.profileImageUrl} size={80} />
-          <View style={styles.profileInfo}>
-            <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{currentUser?.name || 'Ahmed K.'}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-              <Ionicons name="checkmark-circle" size={16} color={theme.colors.primary} />
-              <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginLeft: 4 }}>Verified Professional</Text>
-            </View>
+    <Screen title="Account" onRefresh={reload} refreshing={loading}>
+      <TouchableOpacity onPress={go('/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile" activeOpacity={0.8} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+        <Avatar name={user?.name} imageUrl={user?.profileImageUrl} size="xl" />
+        <View style={{ marginStart: 16, flex: 1 }}>
+          <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{user?.name}</Text>
+          <Text variant="body" color={theme.colors.textSecondary}>{formatPhoneDisplay(user?.phone)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+            <Ionicons name={w.isVerified ? 'shield-checkmark' : 'shield-outline'} size={16} color={theme.colors[st.color]} />
+            <Text variant="bodySmall" weight="semibold" color={theme.colors[st.color]} style={{ marginStart: 6 }}>{st.text}</Text>
           </View>
         </View>
+      </TouchableOpacity>
 
-        {MENU_GROUPS.map((group, gIndex) => (
-          <View key={gIndex} style={[styles.menuGroup, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}>
-            {group.map((item, iIndex) => (
-              <TouchableOpacity key={item.id} style={styles.menuRow} activeOpacity={0.7}>
-                <View style={[styles.iconBox, { backgroundColor: theme.colors.primary + '15' }]}>
-                  <Ionicons name={item.icon as any} size={20} color={theme.colors.primary} />
-                </View>
-                <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ flex: 1, marginLeft: 16 }}>
-                  {item.label}
-                </Text>
-                {item.value && (
-                  <Text variant="bodySmall" color={theme.colors.textTertiary} style={{ marginRight: 8 }}>
-                    {item.value}
-                  </Text>
-                )}
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-                {iIndex < group.length - 1 && (
-                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                )}
-              </TouchableOpacity>
-            ))}
+      {w.activationStatus === 'ONBOARDING' || w.activationStatus === 'PENDING_REVIEW' ? (
+        <View style={{ backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.xl, padding: 16, marginBottom: 24 }}>
+          <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>Your profile is {w.onboarding.percent}% done</Text>
+          <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.colors.border, marginVertical: 10, overflow: 'hidden' }}>
+            <View style={{ height: 8, width: `${w.onboarding.percent}%`, backgroundColor: theme.colors.primary }} />
           </View>
-        ))}
+          <Button title={w.activationStatus === 'ONBOARDING' ? 'Continue setup' : 'View checklist'} variant="primary" onPress={go('/setup')} />
+        </View>
+      ) : null}
 
-        <TouchableOpacity
-          style={[styles.logoutButton, { backgroundColor: theme.colors.error + '20', borderRadius: theme.borderRadius.xl }]}
-          onPress={() => dispatch(logoutUser())}
-          activeOpacity={0.7}
-        >
-          <Text variant="bodyLarge" weight="bold" color={theme.colors.error}>Log Out</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <GroupedList title="Your profile" items={[
+        { id: 'setup', label: 'Skills, area, hours and prices', icon: 'construct-outline', onPress: go('/setup') },
+        { id: 'about', label: 'About you and your photo', icon: 'person-outline', onPress: go('/setup/about') },
+        { id: 'portfolio', label: 'Photos of your past work', icon: 'images-outline', value: w.portfolio.length ? String(w.portfolio.length) : undefined, onPress: go('/setup/portfolio') },
+        { id: 'docs', label: 'ID and selfie', icon: 'id-card-outline', onPress: go('/setup/documents') },
+        { id: 'public', label: 'See how customers see you', icon: 'eye-outline', onPress: go(`/worker/${w.id}`) },
+      ]} />
+      <GroupedList items={[
+        { id: 'prefs', label: 'Language & appearance', icon: 'language-outline', value: `${LANG_LABEL[locale]} · ${APPEARANCE_LABEL[appearance]}`, onPress: go('/preferences') },
+      ]} />
+      <GroupedList title="Security" items={[
+        { id: 'password', label: 'Change password', icon: 'lock-closed-outline', onPress: go('/change-password') },
+        { id: 'devices', label: 'Your devices', icon: 'phone-portrait-outline', onPress: go('/devices') },
+      ]} />
+      <GroupedList items={[
+        { id: 'logout', label: 'Log out', icon: 'log-out-outline', destructive: true, onPress: () => dispatch(logoutUser()) },
+      ]} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  content: { padding: 20, paddingBottom: 60 },
-  profileCard: { flexDirection: 'row', alignItems: 'center', marginBottom: 32 },
-  profileInfo: { marginLeft: 16, flex: 1 },
-  menuGroup: { marginBottom: 24, overflow: 'hidden' },
-  menuRow: { flexDirection: 'row', alignItems: 'center', padding: 16, minHeight: 60, position: 'relative' },
-  iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  divider: { position: 'absolute', bottom: 0, left: 64, right: 0, height: 1 },
-  logoutButton: { padding: 16, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-});

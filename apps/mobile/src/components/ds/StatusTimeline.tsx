@@ -21,7 +21,7 @@ export interface StatusTimelineProps {
 const PHASES: { id: JobPhase; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { id: 'REQUESTED', label: 'Requested', icon: 'paper-plane' },
   { id: 'OFFERS_READY', label: 'Offers ready', icon: 'people' },
-  { id: 'BOOKED', label: 'Booked', icon: 'calendar-check' },
+  { id: 'BOOKED', label: 'Booked', icon: 'calendar' },
   { id: 'ON_THE_WAY', label: 'On the way', icon: 'car' },
   { id: 'ARRIVED', label: 'Arrived', icon: 'location' },
   { id: 'WORKING', label: 'Working', icon: 'hammer' },

@@ -1,128 +1,354 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { COUNTRIES, isCountryCode } from '@fixli/shared';
 import { PrismaService } from '../database/prisma.service';
 import { ChatGateway } from '../chat/gateways/chat.gateway';
+import { StorageService } from '../storage/storage.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { JobQueryDto } from './dto/job-query.dto';
+import { CancelJobDto } from './dto/cancel-job.dto';
+import { assertTransition, JobActor, JobStatus } from './job-state-machine';
+import { computeWindow, ScheduleError } from './schedule';
+
+export interface AuthUser {
+  id: string;
+  type: 'customer' | 'worker' | 'admin';
+}
+
+const BASE_INCLUDE = {
+  category: { select: { id: true, name: true, iconName: true, translations: true } },
+  customer: { select: { id: true, name: true } },
+  assignedWorker: {
+    select: {
+      id: true, rating: true, isVerified: true,
+      user: { select: { id: true, name: true, profileImageUrl: true } },
+    },
+  },
+} satisfies Prisma.JobRequestInclude;
+
+const DETAIL_INCLUDE = {
+  ...BASE_INCLUDE,
+  media: { select: { id: true, kind: true, storageKey: true, mime: true, transcript: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
+  events: { select: { id: true, type: true, fromStatus: true, toStatus: true, actorId: true, payload: true, createdAt: true }, orderBy: { createdAt: 'asc' as const } },
+} satisfies Prisma.JobRequestInclude;
+
+type JobRow = Prisma.JobRequestGetPayload<{ include: typeof BASE_INCLUDE }> & Partial<Prisma.JobRequestGetPayload<{ include: typeof DETAIL_INCLUDE }>>;
+
+const BOOKED = ['ACCEPTED', 'IN_PROGRESS', 'COMPLETED'];
+const CANCELLABLE_BY_CUSTOMER = ['CREATED', 'MATCHES_FOUND', 'AWAITING_WORKER', 'ACCEPTED'];
 
 @Injectable()
 export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly chatGateway: ChatGateway,
+    private readonly storage: StorageService,
   ) {}
 
-  async create(userId: string, userName: string, dto: CreateJobDto) {
-    const job = await this.prisma.jobRequest.create({
-      data: {
-        customerId: userId,
-        customerName: userName || 'Customer',
-        description: dto.description,
-        serviceId: (dto as any).serviceId,
-        location: dto.location,
-        requestedDate: dto.requestedDate,
-        urgency: dto.urgency,
-        severity: dto.severity,
-        estimatedDuration: dto.estimatedDuration,
-        priceEstimate: dto.priceEstimate,
-        isEmergency: dto.isEmergency || false,
-        status: 'MATCHES_FOUND',
-      },
-      include: {
-        customer: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-    });
-
-    if (job.isEmergency) {
-      this.chatGateway.server.emit('emergencyAlert', job);
-    }
-
-    return job;
+  /** Rows this user may see at all. Every read and write goes through this. */
+  private visibleTo(user: AuthUser): Prisma.JobRequestWhereInput {
+    if (user.type === 'admin') return {};
+    if (user.type === 'customer') return { customerId: user.id };
+    return {
+      OR: [
+        { assignedWorkerId: user.id },
+        { assignedWorkerId: null, status: 'MATCHES_FOUND' },
+      ],
+    };
   }
 
-  async findAll(userId: string, userType: string, filters?: { status?: string; serviceId?: string }) {
-    const where: any = {};
+  /**
+   * What each viewer is allowed to see. Workers get the area and city only, never the exact
+   * address or coordinates, until they are booked on the job (doc 05 §6, doc 22 §5.4).
+   * Media comes back as short-lived signed links, never storage keys.
+   */
+  private async present(job: JobRow, user: AuthUser) {
+    const { idempotencyKey, cancelledById, media, events, customer, ...rest } = job as any;
+    const isWorker = user.type === 'worker';
+    const booked = job.assignedWorkerId === user.id && BOOKED.includes(job.status);
+    const hideExact = isWorker && !booked;
 
-    if (userType === 'customer') {
-      where.customerId = userId;
+    const out: Record<string, unknown> = {
+      ...rest,
+      customer: customer ? { id: customer.id, name: isWorker ? String(customer.name).split(' ')[0] : customer.name } : undefined,
+    };
+    delete out.customerName;
+    if (hideExact) {
+      delete out.location;
+      delete out.latitude;
+      delete out.longitude;
+      delete out.addressId;
+    }
+    if (media) {
+      out.media = await Promise.all(
+        (media as any[]).map(async (m) => ({
+          id: m.id, kind: m.kind, mime: m.mime, transcript: m.transcript, createdAt: m.createdAt,
+          url: await this.storage.signedUrlForKey(m.storageKey, 600),
+        })),
+      );
+    }
+    if (events) out.events = events;
+    return out;
+  }
+
+  // ── create ────────────────────────────────────────────────
+
+  async create(user: AuthUser, dto: CreateJobDto) {
+    if (user.type !== 'customer') throw new ForbiddenException('Only customers can request a service');
+
+    // Same request sent twice (retry, double tap, flaky network) -> the same job.
+    const existing = await this.prisma.jobRequest.findUnique({
+      where: { customerId_idempotencyKey: { customerId: user.id, idempotencyKey: dto.idempotencyKey } },
+      include: BASE_INCLUDE,
+    });
+    if (existing) return this.findById(existing.id, user);
+
+    const [customer, category, address] = await Promise.all([
+      this.prisma.user.findUnique({ where: { id: user.id }, select: { name: true, countryCode: true } }),
+      this.prisma.serviceCategory.findFirst({ where: { id: dto.categoryId, isActive: true }, include: { issues: { where: { isActive: true } } } }),
+      this.prisma.address.findFirst({ where: { id: dto.addressId, userId: user.id } }),
+    ]);
+    if (!category) throw new BadRequestException({ code: 'INVALID_CATEGORY', message: 'Please choose a service.' });
+    if (!address) throw new BadRequestException({ code: 'INVALID_ADDRESS', message: 'Please choose one of your saved addresses.' });
+
+    const issueCodes = [...new Set(dto.issueCodes ?? [])];
+    const issues = category.issues.filter((i) => issueCodes.includes(i.code));
+    if (issues.length !== issueCodes.length) throw new BadRequestException({ code: 'INVALID_ISSUE', message: 'One of the problems you chose is not available.' });
+
+    const typed = dto.description?.trim() ?? '';
+    const transcript = dto.audioTranscript?.trim() ?? '';
+    if (typed.length < 3 && !transcript && issues.length === 0 && !dto.audioUploadId) {
+      throw new BadRequestException({ code: 'DESCRIBE_PROBLEM', message: 'Tell us what is wrong: tap a problem, record a voice note, or write a few words.' });
+    }
+    if (transcript && !dto.audioUploadId) throw new BadRequestException('A transcript needs its recording');
+
+    const timeZone = isCountryCode(customer?.countryCode) ? COUNTRIES[customer!.countryCode as keyof typeof COUNTRIES].timezone : 'UTC';
+    let window: { from: Date; to: Date };
+    try {
+      window = computeWindow(dto.when, { date: dto.date, slot: dto.timeSlot, timeZone });
+    } catch (e) {
+      if (e instanceof ScheduleError) throw new BadRequestException({ code: 'INVALID_TIME', message: e.message });
+      throw e;
     }
 
-    if (filters?.status) where.status = filters.status;
-    if (filters?.serviceId) where.serviceId = filters.serviceId;
+    const englishName = ((category.translations as any)?.en?.name as string | undefined) ?? category.name;
+    const title = issues.length ? issues.slice(0, 2).map((i) => i.name).join(' & ') : englishName;
+    const description = [typed, transcript].filter(Boolean).join('\n\n') || issues.map((i) => i.name).join(', ');
+    const location = [address.buildingDetail, address.streetAddress, address.area, address.city].filter(Boolean).join(', ');
+    const urgency = dto.isEmergency ? 'emergency' : dto.when === 'NOW' ? 'urgent' : 'standard';
 
-    return this.prisma.jobRequest.findMany({
-      where,
-      include: {
-        customer: { select: { id: true, name: true } },
-        assignedWorker: {
-          select: {
-            id: true,
-            user: { select: { name: true } },
+    let jobId: string;
+    try {
+      jobId = await this.prisma.$transaction(async (tx) => {
+        const photoKeys = dto.photoUploadIds?.length ? await this.storage.consume(user.id, dto.photoUploadIds, 'JOB_PHOTO', tx) : [];
+        const [audioKey] = dto.audioUploadId ? await this.storage.consume(user.id, [dto.audioUploadId], 'JOB_AUDIO', tx) : [];
+
+        const job = await tx.jobRequest.create({
+          data: {
+            customerId: user.id,
+            customerName: customer?.name ?? 'Customer',
+            categoryId: category.id,
+            issueCodes,
+            title,
+            description,
+            addressId: address.id,
+            location,
+            latitude: address.latitude,
+            longitude: address.longitude,
+            area: address.area,
+            city: address.city,
+            whenOption: dto.when,
+            scheduledFrom: window.from,
+            scheduledTo: window.to,
+            requestedDate: dto.when,
+            urgency,
+            isEmergency: dto.isEmergency ?? false,
+            idempotencyKey: dto.idempotencyKey,
+            // Real matching arrives in Phase 5; until then a new request is open to workers.
+            status: 'MATCHES_FOUND',
+            media: {
+              create: [
+                ...photoKeys.map((storageKey) => ({ kind: 'PHOTO' as const, storageKey, mime: 'image/jpeg', createdById: user.id })),
+                ...(audioKey ? [{ kind: 'AUDIO' as const, storageKey: audioKey, mime: 'audio/mp4', transcript: transcript || null, createdById: user.id }] : []),
+              ],
+            },
+            events: { create: [{ type: 'REQUEST_SENT', actorId: user.id, toStatus: 'MATCHES_FOUND' }] },
           },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
+          select: { id: true },
+        });
+
+        if (dto.analysisId) {
+          await tx.jobAiAnalysis.updateMany({
+            where: { id: dto.analysisId, ownerId: user.id, jobRequestId: null },
+            data: { jobRequestId: job.id },
+          });
+        }
+        return job.id;
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') {
+        const again = await this.prisma.jobRequest.findUnique({
+          where: { customerId_idempotencyKey: { customerId: user.id, idempotencyKey: dto.idempotencyKey } },
+          select: { id: true },
+        });
+        if (again) return this.findById(again.id, user);
+      }
+      throw e;
+    }
+
+    if (dto.isEmergency) {
+      // Minimal payload to workers only. Never customer identity or location.
+      this.chatGateway.server?.to('role:worker').emit('emergencyAlert', { jobId, urgency });
+    }
+    return this.findById(jobId, user);
+  }
+
+  // ── read ──────────────────────────────────────────────────
+
+  async findAll(user: AuthUser, filters?: JobQueryDto) {
+    const and: Prisma.JobRequestWhereInput[] = [this.visibleTo(user)];
+    if (filters?.status) and.push({ status: filters.status });
+    if (filters?.serviceId) and.push({ serviceId: filters.serviceId });
+
+    const limit = filters?.limit ?? 20;
+    const rows = await this.prisma.jobRequest.findMany({
+      where: { AND: and },
+      include: BASE_INCLUDE,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+      ...(filters?.cursor ? { cursor: { id: filters.cursor }, skip: 1 } : {}),
+    });
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const items = await Promise.all(page.map((j) => this.present(j, user)));
+    return { items, nextCursor: hasMore ? page[page.length - 1].id : null };
+  }
+
+  async findById(id: string, user: AuthUser) {
+    const job = await this.prisma.jobRequest.findFirst({
+      where: { AND: [{ id }, this.visibleTo(user)] },
+      include: DETAIL_INCLUDE,
+    });
+    // Same 404 whether it does not exist or belongs to someone else.
+    if (!job) throw new NotFoundException('Job not found');
+    return this.present(job, user);
+  }
+
+  /** Customer edits the request details while it is still open. */
+  async update(id: string, dto: UpdateJobDto, user: AuthUser) {
+    if (user.type !== 'customer') throw new ForbiddenException('Only the customer can edit a request');
+    const result = await this.prisma.jobRequest.updateMany({
+      where: { id, customerId: user.id, status: { in: ['CREATED', 'MATCHES_FOUND'] } },
+      data: dto,
+    });
+    if (result.count === 0) await this.explainFailure(id, user);
+    await this.prisma.jobEvent.create({ data: { jobRequestId: id, actorId: user.id, type: 'DETAILS_EDITED' } });
+    return this.findById(id, user);
+  }
+
+  // ── transitions ───────────────────────────────────────────
+
+  async requestWorker(id: string, workerId: string, user: AuthUser) {
+    if (user.type !== 'customer') throw new ForbiddenException('Only the customer can choose a worker');
+    const worker = await this.prisma.worker.findFirst({ where: { id: workerId, activationStatus: 'ACTIVE' }, select: { id: true } });
+    if (!worker) throw new BadRequestException('That worker is not available');
+    return this.transition(id, user, 'AWAITING_WORKER', {
+      onlyIf: { customerId: user.id },
+      data: { assignedWorkerId: workerId },
+      event: { type: 'WORKER_REQUESTED', payload: { workerId } },
     });
   }
 
-  async findById(id: string, userId: string, userType: string) {
-    const job = await this.prisma.jobRequest.findUnique({
-      where: { id },
-      include: {
-        customer: { select: { id: true, name: true, email: true } },
-        assignedWorker: { include: { user: true } },
-      },
-    });
-
-    if (!job) {
-      throw new NotFoundException('Job not found');
-    }
-
-    if (userType === 'customer' && job.customerId !== userId) {
-      throw new NotFoundException('Job not found'); // Use 404 to not leak existence
-    }
-
-    if (userType === 'worker') {
-      // Workers can see jobs that are unassigned (open market) OR assigned to them
-      if (job.assignedWorkerId && job.assignedWorkerId !== userId) {
-        throw new NotFoundException('Job not found');
-      }
-    }
-
-    return job;
+  async accept(id: string, user: AuthUser) {
+    return this.workerTransition(id, user, 'ACCEPTED', 'WORKER_ACCEPTED');
   }
 
-  async update(id: string, dto: UpdateJobDto, userId: string, userType: string) {
-    const job = await this.prisma.jobRequest.findUnique({ where: { id } });
-    if (!job) {
-      throw new NotFoundException('Job not found');
-    }
+  async start(id: string, user: AuthUser) {
+    return this.workerTransition(id, user, 'IN_PROGRESS', 'WORK_STARTED');
+  }
 
-    if (userType === 'customer' && job.customerId !== userId) {
-      throw new NotFoundException('Job not found');
-    }
+  async complete(id: string, user: AuthUser) {
+    return this.workerTransition(id, user, 'COMPLETED', 'WORK_COMPLETED');
+  }
 
-    if (userType === 'worker') {
-      // Worker can only update if it is assigned to them, or if they are accepting an open job
-      const isAccepting = !job.assignedWorkerId && dto.assignedWorkerId === userId;
-      if (!isAccepting && job.assignedWorkerId !== userId) {
-        throw new NotFoundException('Job not found');
-      }
-    }
-
-    return this.prisma.jobRequest.update({
-      where: { id },
-      data: dto as any,
-      include: {
-        customer: { select: { id: true, name: true, email: true } },
-        assignedWorker: {
-          select: {
-            id: true,
-            user: { select: { name: true } },
-          },
-        },
-      },
+  async decline(id: string, user: AuthUser) {
+    if (user.type !== 'worker') throw new ForbiddenException('Only a worker can decline');
+    return this.transition(id, user, 'MATCHES_FOUND', {
+      onlyIf: { assignedWorkerId: user.id },
+      data: { assignedWorkerId: null },
+      event: { type: 'WORKER_DECLINED' },
     });
+  }
+
+  async cancel(id: string, user: AuthUser, dto: CancelJobDto = {}) {
+    const scope: Prisma.JobRequestWhereInput =
+      user.type === 'customer' ? { customerId: user.id }
+      : user.type === 'worker' ? { assignedWorkerId: user.id }
+      : {};
+    return this.transition(id, user, 'CANCELLED', {
+      onlyIf: scope,
+      data: { cancelReason: dto.reason ?? 'OTHER', cancelledById: user.id },
+      event: { type: 'CANCELLED', payload: { reason: dto.reason ?? 'OTHER', note: dto.note?.trim() || undefined, by: user.type } },
+    });
+  }
+
+  private async workerTransition(id: string, user: AuthUser, to: JobStatus, eventType: string) {
+    if (user.type !== 'worker') throw new ForbiddenException('Only the assigned worker can do this');
+    return this.transition(id, user, to, { onlyIf: { assignedWorkerId: user.id }, event: { type: eventType } });
+  }
+
+  /**
+   * One atomic, validated status change plus its timeline event. The UPDATE is conditional on the
+   * current status, so two simultaneous requests cannot both succeed.
+   */
+  private async transition(
+    id: string,
+    user: AuthUser,
+    to: JobStatus,
+    opts: {
+      onlyIf: Prisma.JobRequestWhereInput;
+      data?: Prisma.JobRequestUncheckedUpdateManyInput;
+      event: { type: string; payload?: Record<string, unknown> };
+    },
+  ) {
+    const job = await this.prisma.jobRequest.findFirst({
+      where: { AND: [{ id }, this.visibleTo(user), opts.onlyIf] },
+      select: { status: true },
+    });
+    if (!job) throw new NotFoundException('Job not found');
+
+    const from = job.status as JobStatus;
+    assertTransition(from, to, user.type as JobActor);
+    if (to === 'CANCELLED' && user.type === 'customer' && !CANCELLABLE_BY_CUSTOMER.includes(from)) {
+      throw new ConflictException('This job can no longer be cancelled here. Please contact support.');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const result = await tx.jobRequest.updateMany({
+        where: { AND: [{ id }, opts.onlyIf], status: from },
+        data: { status: to, ...(opts.data ?? {}) },
+      });
+      if (result.count === 0) throw new ConflictException('This job just changed. Please refresh and try again.');
+      await tx.jobEvent.create({
+        data: {
+          jobRequestId: id, actorId: user.id, type: opts.event.type, fromStatus: from, toStatus: to,
+          payload: opts.event.payload as Prisma.InputJsonValue | undefined,
+        },
+      });
+    });
+    return this.findById(id, user);
+  }
+
+  private async explainFailure(id: string, user: AuthUser): Promise<never> {
+    const exists = await this.prisma.jobRequest.findFirst({ where: { AND: [{ id }, this.visibleTo(user)] }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Job not found');
+    throw new ConflictException('This request can no longer be changed');
   }
 }

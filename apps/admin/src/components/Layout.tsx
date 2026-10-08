@@ -1,14 +1,15 @@
 import { Outlet, NavLink } from 'react-router-dom';
-import { LayoutDashboard, CheckCircle, AlertTriangle, Briefcase, Settings, LogOut, Bell } from 'lucide-react';
+import { LayoutDashboard, CheckCircle, AlertTriangle, Briefcase, LogOut } from 'lucide-react';
+import { useAuth } from '../auth';
 import './Layout.css';
 
 export default function Layout() {
+  const { user, signOut } = useAuth();
   const navItems = [
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Verifications', path: '/verifications', icon: CheckCircle },
     { name: 'Disputes', path: '/disputes', icon: AlertTriangle },
-    { name: 'Services Catalog', path: '/services', icon: Briefcase },
-    { name: 'Settings', path: '/settings', icon: Settings },
+    { name: 'Service catalogue', path: '/services', icon: Briefcase },
   ];
 
   return (
@@ -16,10 +17,10 @@ export default function Layout() {
       <aside className="sidebar glass-panel">
         <div className="sidebar-header">
           <div className="logo-container">
-            <div className="logo-box">T</div>
-            <h1 className="logo-text">Trip<span className="gradient-text">ly</span></h1>
+            <img src="/logo-mark.png" alt="" width={32} height={32} />
+            <h1 className="logo-text">Fix<span className="gradient-text">li</span></h1>
           </div>
-          <p className="admin-badge">Admin Portal</p>
+          <p className="admin-badge">Staff portal</p>
         </div>
 
         <nav className="sidebar-nav">
@@ -36,7 +37,7 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-link logout-btn">
+          <button className="nav-link logout-btn" onClick={signOut}>
             <LogOut className="nav-icon" size={20} />
             <span>Sign Out</span>
           </button>
@@ -45,19 +46,13 @@ export default function Layout() {
 
       <main className="main-content">
         <header className="topbar glass-panel">
-          <div className="search-bar">
-            <input type="text" placeholder="Search users, jobs, disputes..." />
-          </div>
+          <div />
           <div className="topbar-actions">
-            <button className="icon-btn">
-              <Bell size={20} />
-              <span className="badge-indicator"></span>
-            </button>
             <div className="user-profile">
-              <div className="avatar">A</div>
+              <div className="avatar">{(user?.name ?? 'A').charAt(0).toUpperCase()}</div>
               <div className="user-info">
-                <span className="user-name">Admin User</span>
-                <span className="user-role">Superadmin</span>
+                <span className="user-name">{user?.name}</span>
+                <span className="user-role">{user?.email}</span>
               </div>
             </div>
           </div>

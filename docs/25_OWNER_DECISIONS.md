@@ -1,0 +1,33 @@
+# Fixli — Decisions Needed From the Owner
+
+> Living list. Each item says what is blocked, what we do until you decide, and a recommendation.
+> When you decide, write the answer in the **Decision** column (with the date) and engineering will act on it.
+> Last updated: 2026-10-08 (after Phase 4).
+
+## A. Open decisions
+
+| # | Topic | What is needed | Until you decide | Recommendation | Decision |
+|---|-------|----------------|------------------|----------------|----------|
+| O1 | **Price estimates per city** | Approve a price band (min–max, PKR) per service per city, e.g. "Tap & mixer repair, Karachi: 800–2,000". Bands are shown on the request review screen and later used to warn workers about unusual prices (doc 22 §6.3 D). | The review screen shows no estimate, only: "You will see each professional's price before you choose. Nothing is charged until you agree." No invented numbers. | Start with bands for the 10 launch categories in Karachi and Lahore, set by the ops team from 20–30 real local quotes each; review monthly. Stored as configuration (editable without a release). | |
+| O2 | **Automatic re-send when the connection returns** | Should a request that failed to send (no signal) be sent automatically once the phone is back online, or only when the customer taps Send again? | The request stays saved on the phone and re-sending is safe (idempotent: it can never create a duplicate job), but the customer has to tap **Send** again. | Auto-send with a visible "Saved, will send when you're online" banner and a Cancel option. Needs one small library (network status) and an outbox; about 1–2 days. | |
+| O3 | **Matching and offers rules** (Phase 5) | Confirm: (a) how many workers are notified per request; (b) how many offers the customer sees (doc 22 D2 says up to 3); (c) offer expiry (default 10 min); (d) what happens if nobody responds; (e) whether SOS auto-dispatches to the nearest worker (doc 22 D2 says yes). | Phase 5 is built with the defaults in the recommendation column, all as configuration. | (a) up to 10 nearest eligible workers; (b) up to 3 offers shown; (c) 10 min expiry; (d) after 15 min with no offer, widen the radius once, then tell the customer honestly and keep the request open; (e) SOS: offer to the nearest verified online worker first, 3-minute window, then normal offers. | |
+| O4 | **Brand name** | Docs 00–22, logos and app use **Fixli**; doc 23 says **Triply**. | Everything says Fixli. The name is one config key per app. | Keep Fixli (all assets exist); delete or update doc 23. | |
+| O5 | **Phone verification code (OTP)** | You chose to add it later. Until then anyone can register a phone number they don't own, and signup reveals whether a number is registered. Password reset is also impossible without it. | Phone + password only; no "Forgot password". | Add before any public launch: code at signup and at password reset, WhatsApp first then SMS (doc 22 §11.5). Needs an SMS/WhatsApp provider account. | |
+| O6 | **Chat before booking** | Can a customer message a worker who sent an offer before choosing them? | Chat (Phase 7) will be booking-only. | Booking-only at launch (less off-platform dealing); revisit with data. | |
+| O7 | **Phone calls between customer and worker** | Masked numbers through a provider, or show the real number after booking? | No calling feature yet. | Show the number only after booking and only during the job; add masked calling later. | |
+| O8 | **Pakistan commission and cash rules** | Confirm the placeholders in doc 22 §11.8: 12% commission, PKR 100 min / 1,500 max fee, soft limit PKR 3,000 / hard limit PKR 5,000 owed, 7-day limit, settlement rail (JazzCash/Easypaisa/bank). | Payments phase (9) cannot finish. | Accept the placeholders for a pilot; confirm the rail after the payments-licensing answer (legal L5). | |
+| O9 | **Hosting region and data processors** | Where servers/databases live; which SMS, speech-to-text, maps and AI vendors may process Pakistani users' data (legal L4). | Development only. | Decide with counsel before launch; keep ID-document images out of any third-party AI. | |
+| O10 | **Gemini model** | Confirm the model your API key can use. | Default `gemini-2.5-flash`, changeable with `GEMINI_MODEL`. Without a key, AI suggestions are off and safety rules still work. | Use the cheapest current Flash model; run the evaluation set (doc 08) before launch. | |
+| O11 | **Leftover files in the repo root** | `Prolivo_Product_Documentation.zip`, `scratch_login.tsx`, `screenshot.png`, `AGENTS.md` are untracked and not committed. Delete them? | Left untouched and uncommitted. | Delete the zip and scratch file; keep `AGENTS.md` only if you use it. | |
+| O12 | **Local dev database** | Your Docker Postgres stopped responding after the disk filled; `apps/api/.env` points at host `postgres` (only valid inside Docker). | Tests run against a temporary local Postgres. | Restart Docker Desktop; change `@postgres:5432` to `@localhost:5434` in `.env`; then `db:migrate` and `db:seed:catalog`. | |
+| O13 | **Urdu / Arabic wording** | All Urdu and Arabic text (app strings, catalogue names) is machine-drafted. | Shipped as drafts. | Native-speaker review before any user testing. | |
+
+## B. Decided (for reference)
+
+| # | Decision | Date |
+|---|----------|------|
+| D8 | Login with phone number + password for customers and workers; staff use email + password. | 2026-10-07 |
+| D10 | No placeholder data in app code; empty states instead. | 2026-10-07 |
+| D12 | Pakistan first; other countries are configuration, enabled by `ENABLED_COUNTRIES`. | 2026-10-07 |
+| D13 | Cash on completion at launch; card/wallet later behind a provider adapter. | 2026-10-07 |
+| — | One-time code at signup is deferred ("we will add one time code later"). | 2026-10-07 |

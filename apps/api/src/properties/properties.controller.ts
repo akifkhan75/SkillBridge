@@ -1,37 +1,38 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { PropertiesService } from './properties.service';
+import { CreatePropertyDto, CreateAssetDto, CreateWarrantyDto } from './dto/property.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('properties')
-@Controller('properties')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@Roles('customer')
+@Controller('properties')
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new property for user' })
-  createProperty(@CurrentUser('id') userId: string, @Body() body: any) {
-    return this.propertiesService.createProperty(userId, body);
+  @ApiOperation({ summary: 'Create a property' })
+  createProperty(@CurrentUser('id') userId: string, @Body() dto: CreatePropertyDto) {
+    return this.propertiesService.createProperty(userId, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all properties for the current user' })
+  @ApiOperation({ summary: 'Your properties' })
   getProperties(@CurrentUser('id') userId: string) {
     return this.propertiesService.getUserProperties(userId);
   }
 
   @Post(':id/assets')
-  @ApiOperation({ summary: 'Add an asset (e.g. HVAC) to a property' })
-  addAsset(@Param('id') propertyId: string, @Body() body: any) {
-    return this.propertiesService.addAsset(propertyId, body);
+  @ApiOperation({ summary: 'Add an asset to one of your properties' })
+  addAsset(@Param('id') propertyId: string, @CurrentUser('id') userId: string, @Body() dto: CreateAssetDto) {
+    return this.propertiesService.addAsset(userId, propertyId, dto);
   }
 
   @Post('assets/:assetId/warranties')
-  @ApiOperation({ summary: 'Add a warranty to an asset' })
-  addWarranty(@Param('assetId') assetId: string, @Body() body: any) {
-    return this.propertiesService.addWarranty(assetId, body);
+  @ApiOperation({ summary: 'Add a warranty to one of your assets' })
+  addWarranty(@Param('assetId') assetId: string, @CurrentUser('id') userId: string, @Body() dto: CreateWarrantyDto) {
+    return this.propertiesService.addWarranty(userId, assetId, dto);
   }
 }

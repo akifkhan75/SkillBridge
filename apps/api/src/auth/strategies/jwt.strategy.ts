@@ -6,8 +6,9 @@ import { PrismaService } from '../../database/prisma.service';
 
 export interface JwtPayload {
   sub: string;
-  email: string;
   type: string;
+  /** Session id: lets logout / "sign out other devices" take effect immediately. */
+  sid: string;
 }
 
 @Injectable()
@@ -24,21 +25,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
+    if (!payload.sid) throw new UnauthorizedException('Please sign in again');
+
+    const session = await this.prisma.session.findFirst({
+      where: {
+        id: payload.sid,
+        userId: payload.sub,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+        user: { status: 'ACTIVE' },
+      },
       select: {
-        id: true,
-        email: true,
-        name: true,
-        type: true,
-        profileImageUrl: true,
+        user: {
+          select: { id: true, name: true, email: true, phone: true, type: true, profileImageUrl: true },
+        },
       },
     });
+    if (!session) throw new UnauthorizedException('Please sign in again');
 
-    if (!user) {
-      throw new UnauthorizedException('User not found');
-    }
-
-    return user;
+    return { ...session.user, sid: payload.sid };
   }
 }

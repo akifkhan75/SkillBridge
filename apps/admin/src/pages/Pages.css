@@ -137,3 +137,17 @@
   color: var(--text-muted);
   font-size: 1rem;
 }
+
+/* ── Login, states, detail panel ───────────────────────── */
+.login-wrap { min-height: 100vh; display: grid; place-items: center; padding: 1rem; }
+.login-card { width: min(420px, 100%); display: flex; flex-direction: column; gap: 1rem; padding: 2rem; }
+.login-card label { display: flex; flex-direction: column; gap: .35rem; font-size: .9rem; color: var(--text-muted); }
+.login-card input, .reason-input { padding: .75rem 1rem; border-radius: 10px; border: 1px solid var(--border-color, rgba(255,255,255,.15)); background: transparent; color: var(--text-primary); font: inherit; }
+.form-error { color: var(--danger, #ef4444); font-size: .9rem; margin: 0; }
+.state-box { padding: 2.5rem 1rem; text-align: center; color: var(--text-muted); display: flex; flex-direction: column; gap: 1rem; align-items: center; }
+.detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; }
+.doc-img { width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: #000; }
+.row-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.clickable { cursor: pointer; }
+.btn-danger { background: var(--danger, #ef4444); color: #fff; }
+.btn-ghost { background: transparent; border: 1px solid rgba(255,255,255,.2); color: var(--text-primary); }

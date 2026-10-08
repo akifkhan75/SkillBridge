@@ -1,139 +1,158 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, Alert, ActivityIndicator } from 'react-native';
-import * as FileSystem from 'expo-file-system';
-import { api } from '../../services/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Pressable, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import {
+  AudioModule, RecordingPresets, setAudioModeAsync, useAudioPlayer, useAudioRecorder, useAudioRecorderState,
+} from 'expo-audio';
 import { useTheme } from '../../hooks/useTheme';
+import { friendlyError } from '../../hooks/useApi';
 import { Text } from '../../components/ds/Text';
 import { TextInput } from '../../components/ds/TextInput';
+import { uploadAudio } from '../../services/upload';
+import { transcribeVoice } from '../../services/api';
+import { openSettings } from '../../services/pickPhoto';
+
+const MAX_MS = 60_000;
+const MIN_MS = 800;
+
+export interface VoiceValue {
+  audioUploadId?: string;
+  /** Local file, so the person can listen back before sending. */
+  audioUri?: string;
+  transcript: string;
+}
 
 interface VoiceFieldProps {
-  value?: string;
-  onChange: (val: string) => void;
+  value: VoiceValue;
+  onChange: (v: VoiceValue) => void;
+  locale?: string;
   label?: string;
 }
 
-export function VoiceField({ value, onChange, label = 'Describe the issue' }: VoiceFieldProps) {
+/**
+ * Hold to talk -> the recording is uploaded and the server turns it into text, which is shown
+ * so the person can correct it (AI output is a suggestion). The recording itself is always kept
+ * and sent to the professional, because dialect transcription is imperfect (doc 22 §6.4).
+ */
+export function VoiceField({ value, onChange, locale, label = 'Tell us in your own words' }: VoiceFieldProps) {
   const theme = useTheme();
-  const [isRecording, setIsRecording] = useState(false);
-  const [mode, setMode] = useState<'voice' | 'text'>(value ? 'text' : 'voice');
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const rec = useAudioRecorderState(recorder, 200);
+  const player = useAudioPlayer(value.audioUri ?? null);
+  const [busy, setBusy] = useState<'upload' | null>(null);
+  const [error, setError] = useState<string | undefined>();
+  const [denied, setDenied] = useState(false);
+  const startedAt = useRef(0);
 
-  const [isProcessing, setIsProcessing] = useState(false);
+  // Hard stop at 60 s so recordings stay short and cheap to transcribe.
+  useEffect(() => {
+    if (rec.isRecording && rec.durationMillis >= MAX_MS) void stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rec.durationMillis, rec.isRecording]);
 
-  const handleHoldStart = async () => {
-    try {
-      setIsRecording(true);
-    } catch (err) {
-      console.error('Failed to start recording', err);
+  const start = async () => {
+    setError(undefined);
+    setDenied(false);
+    const perm = await AudioModule.requestRecordingPermissionsAsync();
+    if (!perm.granted) {
+      setDenied(true);
+      setError('Microphone access is off. You can turn it on in Settings, or write instead.');
+      return;
     }
+    await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+    await recorder.prepareToRecordAsync();
+    recorder.record();
+    startedAt.current = Date.now();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
   };
 
-  const handleHoldEnd = async () => {
-    setIsRecording(false);
+  const stop = async () => {
+    if (!recorder.isRecording) return;
+    await recorder.stop();
+    await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => undefined);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    const uri = recorder.uri;
+    if (!uri || Date.now() - startedAt.current < MIN_MS) {
+      setError('Keep holding the button while you speak.');
+      return;
+    }
+    setBusy('upload');
     try {
-      setIsProcessing(true);
-      // Simulating transcription for Expo Go compatibility since expo-av was removed
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      const transcribedText = "This is a simulated voice transcription (audio recording requires native build).";
-      onChange(value ? `${value}\n${transcribedText}` : transcribedText);
-    } catch (err) {
-      console.error('Transcription failed:', err);
-      Alert.alert('Error', 'Failed to transcribe audio.');
+      const { id } = await uploadAudio(uri);
+      onChange({ ...value, audioUploadId: id, audioUri: uri });
+      try {
+        const { text } = await transcribeVoice(id, locale);
+        onChange({ audioUploadId: id, audioUri: uri, transcript: text || value.transcript });
+        if (!text) setError("We couldn't hear any words. Your recording is still attached; you can also write below.");
+      } catch (e) {
+        // The recording still goes to the professional; only the text is missing.
+        setError(`${friendlyError(e)} Your recording is still attached.`);
+      }
+    } catch (e) {
+      setError(friendlyError(e));
     } finally {
-      setIsProcessing(false);
-      setMode('text');
+      setBusy(null);
     }
   };
 
-  if (mode === 'text') {
-    return (
-      <View style={styles.container}>
-        <TextInput
-          label={label}
-          value={value}
-          onChangeText={onChange}
-          multiline
-          style={{ minHeight: 100 }}
-          placeholder="Type here..."
-        />
-        <TouchableOpacity 
-          style={styles.switchModeBtn}
-          onPress={() => setMode('voice')}
-        >
-          <Ionicons name="mic" size={16} color={theme.colors.primary} />
-          <Text variant="bodySmall" weight="bold" color={theme.colors.primary} style={{ marginLeft: 4 }}>
-            Use Voice Instead
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const clear = () => onChange({ transcript: '', audioUploadId: undefined, audioUri: undefined });
+  const seconds = Math.floor(rec.durationMillis / 1000);
 
   return (
-    <View style={styles.container}>
-      <Text variant="body" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 16 }}>
-        {label}
-      </Text>
-      
-      <View style={[styles.voiceBox, { backgroundColor: isRecording ? theme.colors.error + '15' : theme.colors.surfaceElevated, borderColor: isRecording ? theme.colors.error : theme.colors.border }]}>
-        <TouchableOpacity
-          onPressIn={handleHoldStart}
-          onPressOut={handleHoldEnd}
-          activeOpacity={0.8}
-          disabled={isProcessing}
-          style={[styles.micButton, { backgroundColor: isProcessing ? theme.colors.surface : isRecording ? theme.colors.error : theme.colors.primary }]}
-        >
-          {isProcessing ? (
-            <ActivityIndicator color={theme.colors.primary} size="large" />
-          ) : (
-            <Ionicons name={isRecording ? "mic" : "mic-outline"} size={32} color="#fff" />
-          )}
-        </TouchableOpacity>
-        
-        <Text variant="body" color={isRecording ? theme.colors.error : theme.colors.textSecondary} style={{ marginTop: 16 }}>
-          {isProcessing ? 'Transcribing...' : isRecording ? 'Listening... release to send' : 'Hold to speak'}
-        </Text>
-      </View>
+    <View>
+      <Text variant="body" weight="semibold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>{label}</Text>
 
-      <TouchableOpacity 
-        style={styles.switchModeBtn}
-        onPress={() => setMode('text')}
-      >
-        <Ionicons name="create" size={16} color={theme.colors.textSecondary} />
-        <Text variant="bodySmall" weight="medium" color={theme.colors.textSecondary} style={{ marginLeft: 4 }}>
-          Write instead
-        </Text>
-      </TouchableOpacity>
+      {!value.audioUploadId ? (
+        <Pressable
+          onPressIn={start}
+          onPressOut={stop}
+          disabled={!!busy}
+          accessibilityRole="button"
+          accessibilityLabel="Hold to record a voice note"
+          accessibilityHint="Press and hold, speak, then let go"
+          style={[styles.hold, { backgroundColor: rec.isRecording ? theme.colors.error + '18' : theme.colors.surface, borderColor: rec.isRecording ? theme.colors.error : theme.colors.border }]}
+        >
+          {busy ? <ActivityIndicator color={theme.colors.primary} /> : (
+            <Ionicons name={rec.isRecording ? 'radio-button-on' : 'mic'} size={34} color={rec.isRecording ? theme.colors.error : theme.colors.primary} />
+          )}
+          <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 8 }}>
+            {busy ? 'Listening to your note…' : rec.isRecording ? `Recording… ${seconds}s  (let go to finish)` : 'Hold to talk'}
+          </Text>
+          {!rec.isRecording && !busy ? <Text variant="caption" color={theme.colors.textTertiary}>Up to 60 seconds, in any language</Text> : null}
+        </Pressable>
+      ) : (
+        <View style={[styles.done, { backgroundColor: theme.colors.surface }]}>
+          <TouchableOpacity onPress={() => { player.seekTo(0); player.play(); }} accessibilityRole="button" accessibilityLabel="Play your voice note" style={styles.row}>
+            <Ionicons name="play-circle" size={30} color={theme.colors.primary} />
+            <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ marginStart: 8, flex: 1 }}>Your voice note</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={clear} accessibilityRole="button" accessibilityLabel="Delete voice note and record again" hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text variant="bodySmall" weight="semibold" color={theme.colors.error}>Record again</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {value.audioUploadId ? (
+        <View style={{ marginTop: 12 }}>
+          <TextInput
+            label="What we heard (you can fix it)"
+            value={value.transcript}
+            onChangeText={(t) => onChange({ ...value, transcript: t })}
+            multiline
+            style={{ minHeight: 80, textAlignVertical: 'top' }}
+          />
+        </View>
+      ) : null}
+
+      {error ? <Text variant="bodySmall" color={theme.colors.error} accessibilityRole="alert" style={{ marginTop: 8 }}>{error}</Text> : null}
+      {denied ? <TouchableOpacity onPress={openSettings} accessibilityRole="button" style={{ marginTop: 6 }}><Text variant="bodySmall" weight="semibold" color={theme.colors.primary}>Open Settings</Text></TouchableOpacity> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { marginBottom: 24 },
-  voiceBox: {
-    padding: 32,
-    borderRadius: 24,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  micButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  switchModeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: 16,
-    padding: 8,
-  }
+  hold: { borderWidth: 1.5, borderRadius: 20, paddingVertical: 22, alignItems: 'center', justifyContent: 'center', minHeight: 120 },
+  done: { borderRadius: 16, padding: 14, flexDirection: 'row', alignItems: 'center' },
+  row: { flexDirection: 'row', alignItems: 'center', flex: 1 },
 });

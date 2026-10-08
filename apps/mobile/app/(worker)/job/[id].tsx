@@ -1,207 +1,80 @@
 import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { View } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../src/hooks/useTheme';
+import { useApi, friendlyError } from '../../../src/hooks/useApi';
+import { Screen } from '../../../src/components/ds/Screen';
 import { Text } from '../../../src/components/ds/Text';
 import { Button } from '../../../src/components/ds/Button';
-import { StatusTimeline, JobPhase } from '../../../src/components/ds/StatusTimeline';
-import { WorkerCard } from '../../../src/components/ds/WorkerCard';
-import LiveTrackerMap from '../../../src/components/ui/LiveTrackerMap';
-
-// MOCK DATA for demonstration of the unified Job Screen
-const MOCK_CUSTOMER = {
-  name: 'Sarah M.',
-  rating: 4.9,
-  jobsDone: 12,
-  isVerified: true,
-  price: 6500, // $65.00
-  distance: '2.4 km',
-};
+import { StatusTimeline } from '../../../src/components/ds/StatusTimeline';
+import { ErrorState, LoadingState } from '../../../src/components/ds/EmptyState';
+import { formatWindow, statusSentence, toPhase } from '../../../src/utils/jobStatus';
+import { JobHistory, JobMedia } from '../../../src/components/ds/JobParts';
+import { useI18n } from '../../../src/hooks/useI18n';
+import * as api from '../../../src/services/api';
 
 export default function WorkerJobScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
+  const { locale } = useI18n();
+  const { data: job, loading, error, reload, setData } = useApi(() => api.getJobView(id), [id]);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | undefined>();
 
-  // In a real app, phase comes from Redux/DB.
-  const [phase, setPhase] = useState<JobPhase>('BOOKED'); 
-  const currentPhase: JobPhase = phase;
+  if (loading && !job) return <Screen title="Job" back><LoadingState /></Screen>;
+  if (error && !job) return <Screen title="Job" back><ErrorState message={error} onRetry={reload} /></Screen>;
+  if (!job) return null;
 
-  // Render bottom sticky action based on state
-  const renderBottomAction = () => {
-    switch (currentPhase) {
-      case 'BOOKED':
-        return (
-          <Button 
-            title="I'm on the way" 
-            variant="primary" 
-            size="lg" 
-            onPress={() => setPhase('ON_THE_WAY')}
-          />
-        );
-      case 'ON_THE_WAY':
-        return (
-          <Button 
-            title="I've Arrived" 
-            variant="primary" 
-            size="lg" 
-            onPress={() => setPhase('ARRIVED')}
-          />
-        );
-      case 'ARRIVED':
-        return (
-          <Button 
-            title="Start Work" 
-            variant="primary" 
-            size="lg" 
-            onPress={() => setPhase('WORKING')}
-          />
-        );
-      case 'WORKING':
-        return (
-          <Button 
-            title="Mark as Done" 
-            variant="primary" 
-            size="lg" 
-            onPress={() => setPhase('DONE')}
-          />
-        );
-      case 'DONE':
-        return (
-          <Text variant="h3" weight="bold" color={theme.colors.success} style={{ textAlign: 'center' }}>
-            Awaiting Customer Payment...
-          </Text>
-        );
-      case 'PAID':
-        return (
-          <Button 
-            title="Rate Customer" 
-            variant="primary" 
-            size="lg" 
-            onPress={() => {
-              Alert.alert('Review', 'Thanks for your feedback!');
-              router.push('/(worker)/today');
-            }}
-          />
-        );
-      default:
-        return null;
-    }
+  const run = (fn: (id: string) => Promise<api.JobView>) => async () => {
+    setBusy(true);
+    setActionError(undefined);
+    try { setData(await fn(job.id)); } catch (e) { setActionError(friendlyError(e)); } finally { setBusy(false); }
   };
 
-  const getStatusMessage = () => {
-    switch (currentPhase) {
-      case 'BOOKED': return `You are booked with ${MOCK_CUSTOMER.name}.`;
-      case 'ON_THE_WAY': return `Navigate to ${MOCK_CUSTOMER.name}.`;
-      case 'ARRIVED': return `You have arrived.`;
-      case 'WORKING': return "Work in progress.";
-      case 'DONE': return "Done! Waiting for customer to pay.";
-      case 'PAID': return "Payment successful!";
-      default: return "Loading...";
-    }
-  };
+  // One primary action per state; the server enforces the order.
+  const action =
+    job.status === 'AWAITING_WORKER' ? (
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ flex: 1 }}><Button title="Decline" variant="secondary" size="lg" disabled={busy} onPress={run(api.declineJob)} /></View>
+        <View style={{ flex: 1 }}><Button title="Accept job" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.acceptJob)} /></View>
+      </View>
+    ) : job.status === 'ACCEPTED' ? (
+      <Button title="Start work" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.startJob)} />
+    ) : job.status === 'IN_PROGRESS' ? (
+      <Button title="Mark as done" variant="primary" size="lg" loading={busy} disabled={busy} onPress={run(api.completeJob)} />
+    ) : undefined;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={28} color={theme.colors.textPrimary} />
-        </TouchableOpacity>
-        <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>
-          Job Details
-        </Text>
-        <View style={{ width: 44 }} />
+    <Screen title="Job" back footer={action} onRefresh={reload} refreshing={loading}>
+      <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{statusSentence(job.status, 'worker', job.customer?.name)}</Text>
+      <View style={{ backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.xl, marginTop: 16, paddingVertical: 8 }}>
+        <StatusTimeline currentPhase={toPhase(job.status)} />
       </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* Status Message */}
-        <View style={{ paddingHorizontal: theme.spacing.xl, marginBottom: theme.spacing.lg }}>
-          <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>
-            {getStatusMessage()}
-          </Text>
-        </View>
-
-        {/* Timeline */}
-        <View style={[styles.card, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}>
-          <StatusTimeline currentPhase={currentPhase} />
-        </View>
-
-        {/* Dynamic Content based on Phase */}
-        {currentPhase === 'ON_THE_WAY' && (
-          <View style={{ paddingHorizontal: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-            <View style={{ height: 200, borderRadius: theme.borderRadius.xl, overflow: 'hidden' }}>
-               {/* Simulating Map */}
-               <LiveTrackerMap 
-                 customerLocation={{ latitude: 0.01, longitude: 0.01 }}
-                 workerLocation={{ latitude: 0, longitude: 0 }}
-                 etaString="15 min"
-               />
-            </View>
-          </View>
-        )}
-
-        {(currentPhase === 'BOOKED' || currentPhase === 'ON_THE_WAY' || currentPhase === 'ARRIVED' || currentPhase === 'WORKING' || currentPhase === 'DONE') && (
-          <View style={{ paddingHorizontal: theme.spacing.xl, marginTop: theme.spacing.xl }}>
-            <WorkerCard {...MOCK_CUSTOMER} />
-          </View>
-        )}
-
-        {/* DEV ONLY: Debug Buttons to progress state manually */}
-        <View style={{ padding: theme.spacing.xl, gap: 8, marginTop: 40, backgroundColor: 'rgba(255,0,0,0.1)' }}>
-          <Text variant="bodySmall" weight="bold" color="red">DEV TOOLS (Progress State)</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            <Button title="Offers" size="sm" onPress={() => setPhase('MATCHES_FOUND' as any)} />
-            <Button title="On Way" size="sm" onPress={() => setPhase('ON_THE_WAY')} />
-            <Button title="Arrive" size="sm" onPress={() => setPhase('ARRIVED')} />
-            <Button title="Work" size="sm" onPress={() => setPhase('WORKING')} />
-            <Button title="Done" size="sm" onPress={() => setPhase('DONE')} />
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Sticky Bottom Action */}
-      <View style={[styles.footer, { backgroundColor: theme.colors.surfaceElevated, borderTopColor: theme.colors.border }]}>
-        {renderBottomAction()}
+      <View style={{ marginTop: 24 }}>
+        <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>WHAT NEEDS FIXING</Text>
+        {job.title ? <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.title}</Text> : null}
+        <Text variant="body" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.description}</Text>
       </View>
-    </SafeAreaView>
+      <JobMedia media={job.media ?? []} />
+      <View style={{ marginTop: 20 }}>
+        <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>WHEN</Text>
+        <Text variant="bodyLarge" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{formatWindow(job.scheduledFrom, job.scheduledTo, job.whenOption, locale)}</Text>
+      </View>
+      <View style={{ marginTop: 20 }}>
+        <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>WHERE</Text>
+        {/* The exact address is only sent once you are booked on the job. */}
+        <Text variant="bodyLarge" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.location ?? [job.area, job.city].filter(Boolean).join(', ')}</Text>
+        {!job.location ? <Text variant="caption" color={theme.colors.textTertiary} style={{ marginTop: 2 }}>You'll see the full address once you accept the job.</Text> : null}
+      </View>
+      {job.customer ? (
+        <View style={{ marginTop: 20 }}>
+          <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>CUSTOMER</Text>
+          <Text variant="bodyLarge" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>{job.customer.name}</Text>
+        </View>
+      ) : null}
+      {job.isEmergency ? <Text variant="body" weight="bold" color={theme.colors.error} style={{ marginTop: 20 }}>Emergency</Text> : null}
+      {actionError ? <Text variant="bodySmall" color={theme.colors.error} accessibilityRole="alert" style={{ marginTop: 16 }}>{actionError}</Text> : null}
+      <JobHistory events={job.events ?? []} viewer="worker" locale={locale} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'flex-start',
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  card: {
-    marginHorizontal: 20,
-    paddingVertical: 8,
-    shadowColor: 'rgba(10,18,40,0.05)',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  footer: {
-    padding: 20,
-    paddingBottom: 34, // Safe area
-    borderTopWidth: 1,
-  },
-});

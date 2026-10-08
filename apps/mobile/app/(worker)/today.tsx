@@ -1,126 +1,110 @@
-import React, { useState } from 'react';
-import { View, ScrollView, StyleSheet, SafeAreaView, Switch, TouchableOpacity } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Switch, TouchableOpacity } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 import { useTheme } from '../../src/hooks/useTheme';
+import { useApi, friendlyError } from '../../src/hooks/useApi';
+import { useAppSelector } from '../../src/hooks/useRedux';
+import { selectCurrentUser } from '../../src/store/authSlice';
+import { Screen } from '../../src/components/ds/Screen';
 import { Text } from '../../src/components/ds/Text';
-import { WorkerCard } from '../../src/components/ds/WorkerCard';
+import { Button } from '../../src/components/ds/Button';
 import { Logo } from '../../src/components/ds/Logo';
+import { EmptyState, ErrorState, LoadingState } from '../../src/components/ds/EmptyState';
+import { statusSentence } from '../../src/utils/jobStatus';
+import * as api from '../../src/services/api';
 
-export default function WorkerTodayScreen() {
+export default function TodayScreen() {
   const theme = useTheme();
-  const [isOnline, setIsOnline] = useState(true);
+  const user = useAppSelector(selectCurrentUser);
+  const me = useApi(api.getWorkerMe);
+  const jobs = useApi(async () => {
+    const [accepted, inProgress, offered] = await Promise.all([api.listJobs('ACCEPTED'), api.listJobs('IN_PROGRESS'), api.listJobs('AWAITING_WORKER')]);
+    const mine = (p: api.Page<api.JobView>) => p.items.filter((j) => j.assignedWorkerId === user?.id);
+    return { active: [...mine(inProgress), ...mine(accepted)], offered: mine(offered) };
+  }, [user?.id]);
+  const [toggling, setToggling] = useState(false);
+  const [toggleError, setToggleError] = useState<string | undefined>();
+
+  useFocusEffect(useCallback(() => { me.reload(); jobs.reload(); }, [me.reload, jobs.reload]));
+
+  const w = me.data;
+  const setOnline = async (value: boolean) => {
+    setToggling(true);
+    setToggleError(undefined);
+    try { me.setData(await api.patchWorkerMe({ isOnline: value })); } catch (e) { setToggleError(friendlyError(e)); } finally { setToggling(false); }
+  };
+
+  const header = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <Logo variant="mark" height={36} />
+      <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Today</Text>
+    </View>
+  );
+
+  if (me.loading && !w) return <Screen>{header}<LoadingState /></Screen>;
+  if (me.error && !w) return <Screen>{header}<ErrorState message={me.error} onRetry={me.reload} /></Screen>;
+  if (!w) return null;
+
+  const next = jobs.data?.active[0];
+  const status = w.activationStatus;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.header}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Logo variant="mark" height={36} />
-          <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>Today</Text>
+    <Screen onRefresh={() => { me.reload(); jobs.reload(); }} refreshing={me.loading || jobs.loading}>
+      {header}
+
+      {status === 'ACTIVE' ? (
+        <View style={{ backgroundColor: w.isOnline ? theme.colors.success + '20' : theme.colors.surface, borderColor: w.isOnline ? theme.colors.success : theme.colors.border, borderWidth: 1.5, borderRadius: theme.borderRadius.xl, padding: 16, flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name={w.isOnline ? 'radio-button-on' : 'radio-button-off'} size={28} color={w.isOnline ? theme.colors.success : theme.colors.textTertiary} />
+          <View style={{ flex: 1, marginHorizontal: 14 }}>
+            <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>{w.isOnline ? "You're online" : "You're offline"}</Text>
+            <Text variant="bodySmall" color={theme.colors.textSecondary}>{w.isOnline ? 'Customers near you can choose you.' : 'Go online to receive requests.'}</Text>
+          </View>
+          <Switch value={w.isOnline} disabled={toggling} onValueChange={setOnline} accessibilityLabel="Online" trackColor={{ true: theme.colors.success, false: theme.colors.border }} />
         </View>
-        <TouchableOpacity style={[styles.notifButton, { backgroundColor: theme.colors.surfaceElevated }]}>
-          <Ionicons name="notifications-outline" size={24} color={theme.colors.textPrimary} />
+      ) : (
+        <View style={{ backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.xl, padding: 18 }}>
+          {status === 'ONBOARDING' ? (
+            <>
+              <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>Finish setting up</Text>
+              <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4, marginBottom: 14 }}>{w.onboarding.percent}% done. Add your skills, area, prices and ID so you can start getting jobs.</Text>
+              <Button title="Continue setup" size="lg" variant="primary" onPress={() => router.push('/setup' as any)} />
+            </>
+          ) : status === 'PENDING_REVIEW' ? (
+            <>
+              <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>We're checking your documents</Text>
+              <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>This usually takes up to 24 hours. We will let you know as soon as you are approved.</Text>
+            </>
+          ) : (
+            <>
+              <Text variant="h3" weight="bold" color={theme.colors.error}>Your account is not active</Text>
+              <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>Please contact support to find out why.</Text>
+            </>
+          )}
+        </View>
+      )}
+      {toggleError ? <Text variant="bodySmall" color={theme.colors.error} accessibilityRole="alert" style={{ marginTop: 8 }}>{toggleError}</Text> : null}
+
+      <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ marginTop: 28, marginBottom: 12 }}>Next job</Text>
+      {jobs.loading && !jobs.data ? <LoadingState /> : jobs.error && !jobs.data ? <ErrorState message={jobs.error} onRetry={jobs.reload} /> : next ? (
+        <TouchableOpacity onPress={() => router.push(`/(worker)/job/${next.id}` as any)} activeOpacity={0.8} accessibilityRole="button"
+          style={{ backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.xl, padding: 16 }}>
+          <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>{next.title ?? next.description}</Text>
+          <Text variant="bodySmall" color={theme.colors.primary} style={{ marginTop: 4 }}>{statusSentence(next.status, 'worker')}</Text>
+          {next.location ? <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10 }}><Ionicons name="location" size={16} color={theme.colors.textTertiary} /><Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginStart: 6 }}>{next.location}</Text></View> : null}
         </TouchableOpacity>
-      </View>
+      ) : (
+        <EmptyState icon="calendar-outline" title="No jobs booked yet" message="When a customer books you, your next job will appear here." />
+      )}
 
-      <ScrollView contentContainerStyle={styles.content}>
-        
-        {/* Online Status Toggle */}
-        <View style={[styles.statusCard, { backgroundColor: isOnline ? theme.colors.success + '20' : theme.colors.surfaceElevated, borderColor: isOnline ? theme.colors.success : theme.colors.border }]}>
-          <View style={styles.statusRow}>
-            <Ionicons name={isOnline ? "wifi" : "wifi-outline"} size={28} color={isOnline ? theme.colors.success : theme.colors.textTertiary} />
-            <View style={{ flex: 1, marginLeft: 16 }}>
-              <Text variant="h3" weight="bold" color={isOnline ? theme.colors.success : theme.colors.textPrimary}>
-                {isOnline ? "You're Online" : "You're Offline"}
-              </Text>
-              <Text variant="bodySmall" color={theme.colors.textSecondary}>
-                {isOnline ? "Looking for new requests nearby..." : "Go online to receive requests."}
-              </Text>
-            </View>
-            <Switch
-              value={isOnline}
-              onValueChange={setIsOnline}
-              trackColor={{ false: theme.colors.border, true: theme.colors.success }}
-              thumbColor="#FFF"
-            />
-          </View>
-        </View>
-
-        {/* Today's Earnings summary */}
-        <View style={{ flexDirection: 'row', gap: 16, marginBottom: 32 }}>
-          <View style={[styles.statBox, { backgroundColor: theme.colors.surfaceElevated }]}>
-            <Text variant="bodySmall" color={theme.colors.textSecondary}>Today's Earnings</Text>
-            <Text variant="h2" weight="extrabold" color={theme.colors.textPrimary}>$120</Text>
-          </View>
-          <View style={[styles.statBox, { backgroundColor: theme.colors.surfaceElevated }]}>
-            <Text variant="bodySmall" color={theme.colors.textSecondary}>Completed</Text>
-            <Text variant="h2" weight="extrabold" color={theme.colors.textPrimary}>2 Jobs</Text>
-          </View>
-        </View>
-
-        {/* Next Job Card */}
-        <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 16 }}>
-          Next Job
-        </Text>
-        <TouchableOpacity 
-          style={[styles.nextJobCard, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}
-          onPress={() => router.push('/(worker)/job/123' as any)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.jobHeader}>
-            <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>Electrical Fix</Text>
-            <Text variant="body" weight="bold" color={theme.colors.primary}>$45.00</Text>
-          </View>
-          <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginBottom: 12 }}>
-            Today, 4:00 PM (In 30 mins)
-          </Text>
-          <View style={styles.addressRow}>
-            <Ionicons name="location" size={16} color={theme.colors.textTertiary} />
-            <Text variant="bodySmall" color={theme.colors.textSecondary} style={{ marginLeft: 6 }}>
-              456 Oak Avenue (2.1 km)
-            </Text>
-          </View>
+      {jobs.data?.offered.length ? (
+        <TouchableOpacity onPress={() => router.push('/(worker)/jobs' as any)} accessibilityRole="button" activeOpacity={0.8}
+          style={{ marginTop: 20, backgroundColor: theme.colors.accent + '15', borderColor: theme.colors.accent, borderWidth: 1, borderRadius: theme.borderRadius.xl, padding: 16, flexDirection: 'row', alignItems: 'center' }}>
+          <Ionicons name="notifications" size={24} color={theme.colors.accent} />
+          <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary} style={{ flex: 1, marginStart: 14 }}>{jobs.data.offered.length === 1 ? '1 customer chose you' : `${jobs.data.offered.length} customers chose you`}</Text>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
         </TouchableOpacity>
-
-        {/* New Requests Alert */}
-        {isOnline && (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, marginTop: 32 }}>
-              <Text variant="h3" weight="bold" color={theme.colors.textPrimary}>New Requests (1)</Text>
-            </View>
-            <TouchableOpacity 
-              style={[styles.requestAlert, { backgroundColor: theme.colors.accent + '10', borderColor: theme.colors.accent }]}
-              onPress={() => router.push('/(worker)/jobs' as any)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.iconCircle}>
-                <Ionicons name="water" size={24} color={theme.colors.accent} />
-              </View>
-              <View style={{ flex: 1, marginLeft: 16 }}>
-                <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>Pipe Burst Emergency</Text>
-                <Text variant="bodySmall" color={theme.colors.textSecondary}>1.5 km away • $80-$120</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.accent} />
-            </TouchableOpacity>
-          </>
-        )}
-
-      </ScrollView>
-    </SafeAreaView>
+      ) : null}
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  notifButton: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 20, paddingBottom: 60 },
-  statusCard: { padding: 20, borderRadius: 24, borderWidth: 1, marginBottom: 24 },
-  statusRow: { flexDirection: 'row', alignItems: 'center' },
-  statBox: { flex: 1, padding: 16, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  nextJobCard: { padding: 20, shadowColor: 'rgba(10,18,40,0.06)', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 3 },
-  jobHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  addressRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  requestAlert: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1 },
-  iconCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' }
-});

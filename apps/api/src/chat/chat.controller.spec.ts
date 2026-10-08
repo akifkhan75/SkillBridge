@@ -1,91 +1,40 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ForbiddenException } from '@nestjs/common';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
-import { UnauthorizedException } from '@nestjs/common';
 
 describe('ChatController', () => {
   let controller: ChatController;
-  let service: ChatService;
-
-  const mockChatService = {
-    getThreadsForUser: jest.fn(),
-    getThreadsByUserId: jest.fn(),
-    getMessages: jest.fn(),
-    sendMessage: jest.fn(),
-    markAsRead: jest.fn(),
-  };
+  const svc = { getThreadsForUser: jest.fn(), getMessages: jest.fn(), sendMessage: jest.fn(), markAsRead: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ChatController],
-      providers: [
-        { provide: ChatService, useValue: mockChatService },
-      ],
+      providers: [{ provide: ChatService, useValue: svc }],
     }).compile();
+    controller = module.get(ChatController);
+  });
+  afterEach(() => jest.resetAllMocks());
 
-    controller = module.get<ChatController>(ChatController);
-    service = module.get<ChatService>(ChatService);
+  it('returns own threads', async () => {
+    svc.getThreadsForUser.mockResolvedValue([]);
+    await controller.getThreadsByUserId('u1', 'u1');
+    expect(svc.getThreadsForUser).toHaveBeenCalledWith('u1');
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it("refuses another user's threads", () => {
+    expect(() => controller.getThreadsByUserId('u2', 'u1')).toThrow(ForbiddenException);
   });
 
-  describe('getMyThreads', () => {
-    it('should call getThreadsForUser', async () => {
-      mockChatService.getThreadsForUser.mockResolvedValue([]);
-      const result = await controller.getMyThreads('user1');
-      expect(result).toEqual([]);
-      expect(mockChatService.getThreadsForUser).toHaveBeenCalledWith('user1');
-    });
+  it('mark-read uses the authenticated user, ignoring any userId in the body', async () => {
+    svc.markAsRead.mockResolvedValue({ success: true });
+    await controller.markRead({ threadId: 't1', userId: 'someone-else' }, 'u1');
+    expect(svc.markAsRead).toHaveBeenCalledWith('t1', 'u1');
   });
 
-  describe('getThreadsByUserId', () => {
-    it('should call getThreadsByUserId if authorized', async () => {
-      mockChatService.getThreadsByUserId.mockResolvedValue([]);
-      const result = await controller.getThreadsByUserId('user1', 'user1');
-      expect(result).toEqual([]);
-      expect(mockChatService.getThreadsByUserId).toHaveBeenCalledWith('user1');
-    });
-
-    it('should throw UnauthorizedException if not authorized', async () => {
-      expect(() => controller.getThreadsByUserId('user1', 'user2')).toThrow(UnauthorizedException);
-    });
-  });
-
-  describe('getMessages', () => {
-    it('should call getMessages', async () => {
-      mockChatService.getMessages.mockResolvedValue([]);
-      const result = await controller.getMessages('thread1', 'user1');
-      expect(result).toEqual([]);
-      expect(mockChatService.getMessages).toHaveBeenCalledWith('thread1', 'user1');
-    });
-  });
-
-  describe('sendMessage', () => {
-    it('should call sendMessage', async () => {
-      const dto = { threadId: 't1', receiverId: 'r1', text: 'hello' };
-      mockChatService.sendMessage.mockResolvedValue({ id: 'msg1' });
-      const result = await controller.sendMessage('user1', dto);
-      expect(result).toEqual({ id: 'msg1' });
-      expect(mockChatService.sendMessage).toHaveBeenCalledWith('user1', dto);
-    });
-  });
-
-  describe('markRead', () => {
-    it('should call markAsRead if authorized', async () => {
-      const dto = { threadId: 't1', userId: 'user1' };
-      mockChatService.markAsRead.mockResolvedValue({ success: true });
-      const result = await controller.markRead(dto, 'user1');
-      expect(result).toEqual({ success: true });
-      expect(mockChatService.markAsRead).toHaveBeenCalledWith(dto);
-    });
-
-    it('should throw UnauthorizedException if not authorized', async () => {
-      const dto = { threadId: 't1', userId: 'user1' };
-      expect(() => controller.markRead(dto, 'user2')).toThrow(UnauthorizedException);
-    });
+  it('send uses the authenticated sender', async () => {
+    svc.sendMessage.mockResolvedValue({});
+    await controller.sendMessage('u1', { threadId: 't1', text: 'hi' });
+    expect(svc.sendMessage).toHaveBeenCalledWith('u1', { threadId: 't1', text: 'hi' });
   });
 });

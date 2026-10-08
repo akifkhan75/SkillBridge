@@ -1,24 +1,25 @@
 import { io, Socket } from 'socket.io-client';
-import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { IChatMessage } from '@fixli/shared';
 
-const API_URL = Constants.expoConfig?.extra?.apiUrl
-  || process.env.EXPO_PUBLIC_API_URL
-  || 'http://192.168.100.66:3002';
+import { SOCKET_URL } from '../config';
 
 class SocketService {
   private socket: Socket | null = null;
   private messageListeners: ((msg: IChatMessage) => void)[] = [];
   private locationListeners: ((data: { workerId: string; latitude: number; longitude: number; heading?: number }) => void)[] = [];
   
-  public async connect(userId: string) {
+  public async connect() {
     if (this.socket) {
       this.socket.disconnect();
     }
     
-    this.socket = io(`${API_URL}/chat`, {
-      query: { userId },
+    // Identity is proven by the access token; the server ignores any user id we might send.
+    const token = await SecureStore.getItemAsync('authToken');
+    if (!token) return;
+
+    this.socket = io(`${SOCKET_URL}/chat`, {
+      auth: { token },
       transports: ['websocket'],
     });
 
@@ -46,15 +47,15 @@ class SocketService {
     }
   }
 
-  public sendMessage(threadId: string, receiverId: string, text: string) {
+  public sendMessage(threadId: string, text: string) {
     if (this.socket && this.socket.connected) {
-      this.socket.emit('sendMessage', { threadId, receiverId, text });
+      this.socket.emit('sendMessage', { threadId, text });
     }
   }
 
-  public sendLocation(receiverId: string, latitude: number, longitude: number, heading?: number) {
+  public sendLocation(jobId: string, latitude: number, longitude: number, heading?: number) {
     if (this.socket && this.socket.connected) {
-      this.socket.emit('locationUpdate', { receiverId, latitude, longitude, heading });
+      this.socket.emit('locationUpdate', { jobId, latitude, longitude, heading });
     }
   }
 

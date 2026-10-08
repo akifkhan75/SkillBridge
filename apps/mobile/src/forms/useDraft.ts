@@ -7,7 +7,7 @@ export function useDraft<TFieldValues extends Record<string, any>>(
   form: UseFormReturn<TFieldValues>
 ) {
   const { watch, reset, getValues } = form;
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const isRestoring = useRef(false);
 
   // Auto-save logic (debounced)

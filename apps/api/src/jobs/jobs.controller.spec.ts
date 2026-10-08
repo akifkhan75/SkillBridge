@@ -1,84 +1,42 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JobsController } from './jobs.controller';
 import { JobsService } from './jobs.service';
-import { CreateJobDto } from './dto/create-job.dto';
-import { UpdateJobDto } from './dto/update-job.dto';
-import { JobCategory } from '@fixli/shared';
 
 describe('JobsController', () => {
   let controller: JobsController;
-  let service: JobsService;
-
-  const mockJobsService = {
-    create: jest.fn(),
-    findAll: jest.fn(),
-    findById: jest.fn(),
-    update: jest.fn(),
+  const svc = {
+    create: jest.fn(), findAll: jest.fn(), findById: jest.fn(), update: jest.fn(),
+    requestWorker: jest.fn(), accept: jest.fn(), decline: jest.fn(), start: jest.fn(),
+    complete: jest.fn(), cancel: jest.fn(),
   };
+  const user = { id: 'u1', type: 'customer' as const, name: 'Test' };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [JobsController],
-      providers: [
-        { provide: JobsService, useValue: mockJobsService },
-      ],
+      providers: [{ provide: JobsService, useValue: svc }],
     }).compile();
+    controller = module.get(JobsController);
+  });
+  afterEach(() => jest.resetAllMocks());
 
-    controller = module.get<JobsController>(JobsController);
-    service = module.get<JobsService>(JobsService);
+  it('passes the authenticated user (not client input) to create', async () => {
+    const dto = { categoryId: 'c', addressId: 'a', when: 'NOW' as const, idempotencyKey: 'k-12345678', issueCodes: ['leaking_tap'] };
+    svc.create.mockResolvedValue({ id: '1' });
+    await controller.create(user, dto);
+    expect(svc.create).toHaveBeenCalledWith(user, dto);
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('passes query filters to findAll', async () => {
+    svc.findAll.mockResolvedValue({ items: [], nextCursor: null });
+    await controller.findAll(user, { status: 'ACCEPTED', limit: 5 });
+    expect(svc.findAll).toHaveBeenCalledWith(user, { status: 'ACCEPTED', limit: 5 });
   });
 
-  describe('create', () => {
-    it('should call create', async () => {
-      const dto = { description: 'test', jobType: JobCategory.PLUMBING } as any;
-      mockJobsService.create.mockResolvedValue({ id: '1' });
-      const result = await controller.create('user1', 'Test', dto);
-      expect(result).toEqual({ id: '1' });
-      expect(mockJobsService.create).toHaveBeenCalledWith('user1', 'Test', dto);
-    });
-  });
-
-  describe('findAll', () => {
-    it('should call findAll with filters', async () => {
-      mockJobsService.findAll.mockResolvedValue([]);
-      const result = await controller.findAll('user1', 'customer', 'OPEN', 'PLUMBING');
-      expect(result).toEqual([]);
-      expect(mockJobsService.findAll).toHaveBeenCalledWith('user1', 'customer', { status: 'OPEN', jobType: 'PLUMBING' });
-    });
-  });
-
-  describe('findOne', () => {
-    it('should call findById', async () => {
-      mockJobsService.findById.mockResolvedValue({ id: '1' });
-      const result = await controller.findOne('1', 'user1', 'customer');
-      expect(result).toEqual({ id: '1' });
-      expect(mockJobsService.findById).toHaveBeenCalledWith('1', 'user1', 'customer');
-    });
-  });
-
-  describe('update', () => {
-    it('should call update', async () => {
-      const dto = { status: 'ACCEPTED' } as any;
-      mockJobsService.update.mockResolvedValue({ id: '1' });
-      const result = await controller.update('1', dto, 'user1', 'customer');
-      expect(result).toEqual({ id: '1' });
-      expect(mockJobsService.update).toHaveBeenCalledWith('1', dto, 'user1', 'customer');
-    });
-  });
-
-  describe('replace', () => {
-    it('should call update', async () => {
-      const dto = { status: 'ACCEPTED' } as any;
-      mockJobsService.update.mockResolvedValue({ id: '1' });
-      const result = await controller.replace('1', dto, 'user1', 'customer');
-      expect(result).toEqual({ id: '1' });
-      expect(mockJobsService.update).toHaveBeenCalledWith('1', dto, 'user1', 'customer');
-    });
+  it('exposes one endpoint per transition and no generic status setter', () => {
+    expect((controller as any).replace).toBeUndefined();
+    for (const fn of ['accept', 'decline', 'start', 'complete', 'cancel', 'requestWorker']) {
+      expect(typeof (controller as any)[fn]).toBe('function');
+    }
   });
 });

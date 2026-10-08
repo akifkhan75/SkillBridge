@@ -21,8 +21,13 @@ export enum UserType {
 export interface IUser {
   id: string;
   name: string;
-  email: string;
+  /** Optional: customers and workers sign in with their phone; email is for admins. */
+  email?: string | null;
   type: UserType;
+  /** E.164, e.g. +923001234567 */
+  phone?: string | null;
+  countryCode?: string | null;
+  locale?: string;
   profileImageUrl?: string;
   createdAt: string;
   updatedAt: string;
@@ -30,7 +35,10 @@ export interface IUser {
 
 export interface IAuthResponse {
   user: IUser;
+  /** Short-lived access token (15 min). */
   token: string;
+  /** Long-lived, rotating, single-use refresh token. */
+  refreshToken: string;
 }
 
 export type AuthFlowState = 'LOGIN' | 'SIGNUP_ROLE_SELECTION' | 'SIGNUP_FORM';

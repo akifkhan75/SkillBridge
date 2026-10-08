@@ -1,7 +1,8 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import type { IUser, AuthFlowState } from '@fixli/shared';
 import * as api from '../services/api';
-import * as SecureStore from 'expo-secure-store';
+import { saveTokens, clearTokens, getAccessToken } from '../services/session';
+import type { CountryCode } from '@fixli/shared';
 import type { RootState } from './index';
 
 interface AuthState {
@@ -10,6 +11,8 @@ interface AuthState {
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
   authFlowState: AuthFlowState;
+  /** True once the stored session has been checked with the server (success or not). */
+  restored: boolean;
 }
 
 const initialState: AuthState = {
@@ -18,88 +21,95 @@ const initialState: AuthState = {
   status: 'idle',
   error: null,
   authFlowState: 'LOGIN',
+  restored: false,
 };
+
+export interface LoginArgs { phone: string; countryCode: CountryCode; password: string }
+export interface SignupArgs extends LoginArgs { name: string; type: 'customer' | 'worker'; locale?: 'en' | 'ar' | 'ur' }
 
 export const loginUser = createAsyncThunk<
   { user: IUser; token: string },
-  { email: string; password: string },
+  LoginArgs,
   { rejectValue: string }
->('auth/loginUser', async (credentials, { rejectWithValue }) => {
+>('auth/loginUser', async (args, { rejectWithValue }) => {
   try {
-    // DEV MODE: instantly mock login for demo accounts to prevent long fetch timeouts
-    if (credentials.email.includes('example.com')) {
-      const mockUser: IUser = {
-        id: credentials.email.includes('worker') ? 'worker-1' : 'customer-1',
-        email: credentials.email,
-        name: credentials.email.includes('worker') ? 'Demo Worker' : 'Demo Customer',
-        type: credentials.email.includes('worker') ? 'worker' : 'customer',
-        phone: '+1234567890',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await SecureStore.setItemAsync('authToken', 'mock-token');
-      return { user: mockUser, token: 'mock-token' };
-    }
-
-    const response = await api.login(credentials.email, credentials.password);
-    await SecureStore.setItemAsync('authToken', response.token);
-    return response;
+    const res = await api.login(args.phone, args.countryCode, args.password);
+    await saveTokens(res.token, res.refreshToken);
+    return { user: res.user, token: res.token };
   } catch (error: any) {
-    // DEV MODE MOCK: Fallback if backend is down or user missing
-    console.warn('[DEV] API login failed, using mock data. Error:', error.message);
-    const mockUser: IUser = {
-      id: credentials.email.includes('worker') ? 'worker-1' : 'customer-1',
-      email: credentials.email,
-      name: credentials.email.includes('worker') ? 'Demo Worker' : 'Demo Customer',
-      type: credentials.email.includes('worker') ? 'worker' : 'customer',
-      phone: '+1234567890',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    await SecureStore.setItemAsync('authToken', 'mock-token');
-    return { user: mockUser, token: 'mock-token' };
+    // Real errors only: a wrong password or an unreachable server must never produce a signed-in user.
+    return rejectWithValue(friendlyAuthError(error));
   }
 });
 
 export const signupUser = createAsyncThunk<
   { user: IUser; token: string },
-  { name: string; email: string; password: string; type: 'customer' | 'worker' },
+  SignupArgs,
   { rejectValue: string }
->('auth/signupUser', async (formData, { rejectWithValue }) => {
+>('auth/signupUser', async (args, { rejectWithValue }) => {
   try {
-    const response = await api.signup(formData);
-    await SecureStore.setItemAsync('authToken', response.token);
-    return response;
+    const res = await api.signup(args);
+    await saveTokens(res.token, res.refreshToken);
+    return { user: res.user, token: res.token };
   } catch (error: any) {
-    return rejectWithValue(error.message || 'Signup failed');
+    return rejectWithValue(friendlyAuthError(error));
   }
 });
 
+/** Validates the stored session with the server (refreshing it if needed). No session = signed out. */
 export const restoreSession = createAsyncThunk<
   { user: IUser; token: string } | null,
   void,
   { rejectValue: string }
->('auth/restoreSession', async (_, { rejectWithValue }) => {
+>('auth/restoreSession', async () => {
+  const token = await getAccessToken();
+  if (!token) return null;
   try {
-    const token = await SecureStore.getItemAsync('authToken');
-    if (!token) return null;
-    // Validate token by fetching current user
-    // For now, just restore token (backend validates on API calls)
-    return null;
-  } catch {
+    const user = await api.getCurrentUser(); // refreshes silently on 401
+    return { user, token: (await getAccessToken()) ?? token };
+  } catch (error: any) {
+    // Only a definite "your session is gone" signs out. A network error keeps the tokens so the
+    // user is not logged out just for opening the app with no signal.
+    if (error instanceof api.ApiError && (error.status === 401 || error.status === 403)) {
+      await clearTokens();
+    }
     return null;
   }
 });
+
+/** Revokes the session on the server (best effort) and clears local credentials. */
+export const logoutUser = createAsyncThunk<void, void>('auth/logoutUser', async () => {
+  try {
+    await api.logoutRemote();
+  } catch {
+    // Offline or already expired: still sign out locally.
+  }
+  await clearTokens();
+});
+
+function friendlyAuthError(error: unknown): string {
+  if (error instanceof api.ApiError) {
+    if (error.status === 401) return error.message || 'Phone number or password is wrong.';
+    if (error.status === 429) return 'Too many tries. Please wait a minute and try again.';
+    return error.message;
+  }
+  return "We couldn't reach the server. Check your connection and try again.";
+}
 
 const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    logoutUser: (state) => {
+    /** After editing the profile, keep the signed-in user in sync with the server's copy. */
+    setCurrentUser: (state, action: PayloadAction<IUser>) => {
+      state.currentUser = action.payload;
+    },
+    /** Used when the server says the session is gone (refresh failed); no network call. */
+    sessionExpired: (state) => {
       state.currentUser = null;
       state.token = null;
       state.authFlowState = 'LOGIN';
-      SecureStore.deleteItemAsync('authToken');
+      state.restored = true;
     },
     setAuthFlowState: (state, action: PayloadAction<AuthFlowState>) => {
       state.authFlowState = action.payload;
@@ -137,15 +147,34 @@ const authSlice = createSlice({
       .addCase(signupUser.rejected, (state, action) => {
         state.status = 'failed';
         state.error = action.payload ?? 'Signup failed';
+      })
+      .addCase(logoutUser.fulfilled, (state) => {
+        state.currentUser = null;
+        state.token = null;
+        state.status = 'idle';
+        state.error = null;
+        state.authFlowState = 'LOGIN';
+        state.restored = true;
+      })
+      .addCase(restoreSession.fulfilled, (state, action) => {
+        if (action.payload) {
+          state.currentUser = action.payload.user;
+          state.token = action.payload.token;
+        }
+        state.restored = true;
+      })
+      .addCase(restoreSession.rejected, (state) => {
+        state.restored = true;
       });
   },
 });
 
-export const { logoutUser, setAuthFlowState, clearAuthError } = authSlice.actions;
+export const { setCurrentUser, sessionExpired, setAuthFlowState, clearAuthError } = authSlice.actions;
 
 export const selectCurrentUser = (state: RootState) => state.auth.currentUser;
 export const selectAuthToken = (state: RootState) => state.auth.token;
 export const selectIsAuthLoading = (state: RootState) => state.auth.status === 'loading';
+export const selectSessionRestored = (state: RootState) => state.auth.restored;
 export const selectAuthFlowState = (state: RootState) => state.auth.authFlowState;
 export const selectAuthError = (state: RootState) => state.auth.error;
 

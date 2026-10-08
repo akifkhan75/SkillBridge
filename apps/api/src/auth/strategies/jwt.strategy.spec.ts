@@ -1,51 +1,27 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../database/prisma.service';
-import { JwtStrategy } from './jwt.strategy';
 import { UnauthorizedException } from '@nestjs/common';
+import { JwtStrategy } from './jwt.strategy';
 
 describe('JwtStrategy', () => {
-  let strategy: JwtStrategy;
+  const prisma = { session: { findFirst: jest.fn() } };
+  const strategy = new JwtStrategy({ get: () => 'x'.repeat(40) } as any, prisma as any);
+  afterEach(() => jest.resetAllMocks());
 
-  const mockConfigService = {
-    get: jest.fn().mockReturnValue('test-secret'),
-  };
-
-  const mockPrismaService = {
-    user: {
-      findUnique: jest.fn(),
-    },
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        JwtStrategy,
-        { provide: ConfigService, useValue: mockConfigService },
-        { provide: PrismaService, useValue: mockPrismaService },
-      ],
-    }).compile();
-
-    strategy = module.get<JwtStrategy>(JwtStrategy);
+  it('returns the user plus session id for a live session', async () => {
+    prisma.session.findFirst.mockResolvedValue({ user: { id: 'u1', type: 'customer' } });
+    await expect(strategy.validate({ sub: 'u1', type: 'customer', sid: 's1' })).resolves.toEqual({
+      id: 'u1', type: 'customer', sid: 's1',
+    });
+    const where = prisma.session.findFirst.mock.calls[0][0].where;
+    expect(where).toMatchObject({ id: 's1', userId: 'u1', revokedAt: null, user: { status: 'ACTIVE' } });
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(strategy).toBeDefined();
+  it('rejects a revoked/expired/unknown session', async () => {
+    prisma.session.findFirst.mockResolvedValue(null);
+    await expect(strategy.validate({ sub: 'u1', type: 'customer', sid: 's1' })).rejects.toThrow(UnauthorizedException);
   });
 
-  describe('validate', () => {
-    it('should return user if found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ id: '1' });
-      const result = await strategy.validate({ sub: '1', email: 'test', type: 'customer' });
-      expect(result).toEqual({ id: '1' });
-      expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: '1' } }));
-    });
-
-    it('should throw UnauthorizedException if not found', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue(null);
-      await expect(strategy.validate({ sub: '2', email: 'test', type: 'customer' })).rejects.toThrow(UnauthorizedException);
-    });
+  it('rejects old tokens that carry no session id', async () => {
+    await expect(strategy.validate({ sub: 'u1', type: 'customer' } as any)).rejects.toThrow(UnauthorizedException);
+    expect(prisma.session.findFirst).not.toHaveBeenCalled();
   });
 });

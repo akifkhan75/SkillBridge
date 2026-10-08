@@ -42,7 +42,7 @@ export const WorkerCard = ({
       ]}
     >
       <View style={styles.topRow}>
-        <Avatar name={name} imageUrl={photoUrl} size={60} />
+        <Avatar name={name} imageUrl={photoUrl} size="lg" />
         
         <View style={styles.infoCol}>
           <View style={styles.nameRow}>

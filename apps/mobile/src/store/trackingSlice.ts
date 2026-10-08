@@ -10,6 +10,8 @@ interface Coordinates {
 interface TrackingState {
   isTracking: boolean;
   trackedWorkerId: string | null;
+  /** The job being tracked; the server derives who receives location from it. */
+  jobId: string | null;
   workerLocation: Coordinates | null;
   customerLocation: Coordinates | null;
   etaString: string | null;
@@ -18,6 +20,7 @@ interface TrackingState {
 const initialState: TrackingState = {
   isTracking: false,
   trackedWorkerId: null,
+  jobId: null,
   workerLocation: null,
   customerLocation: null,
   etaString: null,
@@ -27,9 +30,10 @@ const trackingSlice = createSlice({
   name: 'tracking',
   initialState,
   reducers: {
-    startTracking: (state, action: PayloadAction<{ workerId: string; customerLocation: Coordinates }>) => {
+    startTracking: (state, action: PayloadAction<{ workerId: string; jobId: string; customerLocation: Coordinates }>) => {
       state.isTracking = true;
       state.trackedWorkerId = action.payload.workerId;
+      state.jobId = action.payload.jobId;
       state.customerLocation = action.payload.customerLocation;
       state.workerLocation = null;
       state.etaString = 'Calculating...';
@@ -37,16 +41,14 @@ const trackingSlice = createSlice({
     stopTracking: (state) => {
       state.isTracking = false;
       state.trackedWorkerId = null;
+      state.jobId = null;
       state.workerLocation = null;
       state.etaString = null;
     },
     updateWorkerLocation: (state, action: PayloadAction<Coordinates>) => {
       state.workerLocation = action.payload;
-      // Simple mock ETA calculation based on direct distance could go here
-      // Real app would use Google Maps Matrix API
-      if (state.customerLocation && state.workerLocation) {
-        state.etaString = '15 mins'; // Mock string for now
-      }
+      // ETA comes from the server's routing provider (Phase 8); never invent one here.
+      state.etaString = null;
     },
     updateCustomerLocation: (state, action: PayloadAction<Coordinates>) => {
       state.customerLocation = action.payload;

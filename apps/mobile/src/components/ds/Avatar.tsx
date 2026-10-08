@@ -7,12 +7,14 @@ export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
 export interface AvatarProps {
   source?: { uri: string } | number;
+  imageUrl?: string | null;
   name?: string;
   size?: AvatarSize;
   style?: ViewStyle;
 }
 
-export const Avatar = ({ source, name, size = 'md', style }: AvatarProps) => {
+export const Avatar = ({ source: sourceProp, imageUrl, name, size = 'md', style }: AvatarProps) => {
+  const source = sourceProp ?? (imageUrl ? { uri: imageUrl } : undefined);
   const theme = useTheme();
 
   let sizeInPixels = 40;

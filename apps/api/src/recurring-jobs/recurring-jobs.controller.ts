@@ -1,38 +1,45 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { RecurringJobsService } from './recurring-jobs.service';
+import { CreateRecurringJobDto } from './dto/recurring-job.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('recurring-jobs')
-@Controller('recurring-jobs')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@Controller('recurring-jobs')
 export class RecurringJobsController {
   constructor(private readonly recurringJobsService: RecurringJobsService) {}
 
   @Post('property/:propertyId')
-  @ApiOperation({ summary: 'Setup a recurring job for a property' })
-  createRecurringJob(@Param('propertyId') propertyId: string, @Body() body: any) {
-    return this.recurringJobsService.createRecurringJob(propertyId, body);
+  @Roles('customer')
+  @ApiOperation({ summary: 'Set up a recurring job for one of your properties' })
+  createRecurringJob(
+    @Param('propertyId') propertyId: string,
+    @CurrentUser('id') userId: string,
+    @Body() dto: CreateRecurringJobDto,
+  ) {
+    return this.recurringJobsService.createRecurringJob(userId, propertyId, dto);
   }
 
   @Get('property/:propertyId')
-  @ApiOperation({ summary: 'Get recurring jobs for a property' })
-  getPropertyRecurringJobs(@Param('propertyId') propertyId: string) {
-    return this.recurringJobsService.getPropertyRecurringJobs(propertyId);
+  @Roles('customer')
+  @ApiOperation({ summary: 'Recurring jobs for one of your properties' })
+  getPropertyRecurringJobs(@Param('propertyId') propertyId: string, @CurrentUser('id') userId: string) {
+    return this.recurringJobsService.getPropertyRecurringJobs(userId, propertyId);
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Cancel a recurring job' })
-  cancelRecurringJob(@Param('id') id: string) {
-    return this.recurringJobsService.cancelRecurringJob(id);
+  @Roles('customer')
+  @ApiOperation({ summary: 'Cancel one of your recurring jobs' })
+  cancelRecurringJob(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.recurringJobsService.cancelRecurringJob(userId, id);
   }
 
   @Get('system/due')
-  @ApiOperation({ summary: 'Get all due recurring jobs (System/Admin)' })
-  getDueJobs(@CurrentUser('type') type: string) {
-    if (type !== 'admin') throw new ForbiddenException('Admin access required');
+  @Roles('admin')
+  @ApiOperation({ summary: 'All due recurring jobs (admin/system)' })
+  getDueJobs() {
     return this.recurringJobsService.getDueJobs();
   }
 }

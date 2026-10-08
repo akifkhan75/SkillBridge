@@ -1,62 +1,58 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { json, urlencoded } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const isProd = process.env.NODE_ENV === 'production';
 
-  // Security
+  // Behind a load balancer the client IP comes from X-Forwarded-For; needed for per-IP rate limits.
+  app.set('trust proxy', 1);
   app.use(helmet());
+
+  const origins = process.env.FRONTEND_URL
+    ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
+    : ['http://localhost:8081', 'http://localhost:5173', 'http://localhost:5174'];
   app.enableCors({
-    origin: process.env.FRONTEND_URL || ['http://localhost:8081', 'http://localhost:3000'], // Restrict in production
+    origin: origins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
   });
 
-  // Increase payload size limits for base64 audio/image uploads
-  app.use(json({ limit: '50mb' }));
-  app.use(urlencoded({ extended: true, limit: '50mb' }));
+  // Media moves to presigned object-storage uploads in Phase 3; until then base64 photos/audio
+  // are capped well below the old 50 MB.
+  app.use(json({ limit: '12mb' }));
+  app.use(urlencoded({ extended: true, limit: '1mb' }));
 
-  // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // Global API prefix
   app.setGlobalPrefix('api');
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Fixli API')
-    .setDescription('Fixli backend API for connecting customers with skilled workers')
-    .setVersion('2.0')
-    .addBearerAuth()
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User management')
-    .addTag('workers', 'Worker management')
-    .addTag('jobs', 'Job request management')
-    .addTag('chat', 'Chat and messaging')
-    .addTag('services', 'Service packages and subscriptions')
-    .addTag('ai', 'AI-powered service analysis')
-    .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
+  // API docs are not public in production.
+  if (!isProd) {
+    const config = new DocumentBuilder()
+      .setTitle('Fixli API')
+      .setDescription('Fixli backend API for connecting customers with skilled workers')
+      .setVersion('2.0')
+      .addBearerAuth()
+      .build();
+    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
+  }
 
   const port = process.env.PORT || 3002;
   await app.listen(port);
-  console.log(`🚀 Fixli API running on http://localhost:${port}`);
-  console.log(`📚 Swagger docs at http://localhost:${port}/docs`);
+  Logger.log(`Fixli API listening on :${port}${isProd ? '' : ` (docs at /docs)`}`, 'Bootstrap');
 }
 
 bootstrap();

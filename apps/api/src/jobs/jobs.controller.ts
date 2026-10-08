@@ -1,70 +1,76 @@
-import { Controller, Get, Post, Patch, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
-import { JobsService } from './jobs.service';
+import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { JobsService, AuthUser } from './jobs.service';
 import { CreateJobDto } from './dto/create-job.dto';
 import { UpdateJobDto } from './dto/update-job.dto';
+import { JobQueryDto } from './dto/job-query.dto';
+import { RequestWorkerDto } from './dto/request-worker.dto';
+import { CancelJobDto } from './dto/cancel-job.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 
 @ApiTags('jobs')
-@Controller('job-requests')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@Controller('job-requests')
 export class JobsController {
   constructor(private readonly jobsService: JobsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new job request' })
-  create(
-    @CurrentUser('id') userId: string,
-    @CurrentUser('name') userName: string,
-    @Body() dto: CreateJobDto,
-  ) {
-    return this.jobsService.create(userId, userName, dto);
+  @ApiOperation({ summary: 'Create a new job request (customers)' })
+  create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobDto) {
+    return this.jobsService.create(user, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all job requests (filtered by user role)' })
-  @ApiQuery({ name: 'status', required: false })
-  @ApiQuery({ name: 'serviceId', required: false })
-  findAll(
-    @CurrentUser('id') userId: string,
-    @CurrentUser('type') userType: string,
-    @Query('status') status?: string,
-    @Query('serviceId') serviceId?: string,
-  ) {
-    return this.jobsService.findAll(userId, userType, { status, serviceId });
+  @ApiOperation({ summary: 'List jobs visible to the caller (paginated)' })
+  findAll(@CurrentUser() user: AuthUser, @Query() query: JobQueryDto) {
+    return this.jobsService.findAll(user, query);
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get job request by ID' })
-  findOne(
-    @Param('id') id: string,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('type') userType: string,
-  ) {
-    return this.jobsService.findById(id, userId, userType);
+  @ApiOperation({ summary: 'Get a job the caller is allowed to see' })
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.findById(id, user);
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update job request (partial)' })
-  update(
-    @Param('id') id: string,
-    @Body() dto: UpdateJobDto,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('type') userType: string,
-  ) {
-    return this.jobsService.update(id, dto, userId, userType);
+  @ApiOperation({ summary: 'Edit request details while still open (customer)' })
+  update(@Param('id') id: string, @Body() dto: UpdateJobDto, @CurrentUser() user: AuthUser) {
+    return this.jobsService.update(id, dto, user);
   }
 
-  @Put(':id')
-  @ApiOperation({ summary: 'Update job request (full)' })
-  replace(
-    @Param('id') id: string,
-    @Body() dto: UpdateJobDto,
-    @CurrentUser('id') userId: string,
-    @CurrentUser('type') userType: string,
-  ) {
-    return this.jobsService.update(id, dto, userId, userType);
+  @Post(':id/request-worker')
+  @ApiOperation({ summary: 'Customer chooses a worker for an open job' })
+  requestWorker(@Param('id') id: string, @Body() dto: RequestWorkerDto, @CurrentUser() user: AuthUser) {
+    return this.jobsService.requestWorker(id, dto.workerId, user);
+  }
+
+  @Post(':id/accept')
+  @ApiOperation({ summary: 'Assigned worker accepts' })
+  accept(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.accept(id, user);
+  }
+
+  @Post(':id/decline')
+  @ApiOperation({ summary: 'Assigned worker declines; job reopens' })
+  decline(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.decline(id, user);
+  }
+
+  @Post(':id/start')
+  @ApiOperation({ summary: 'Assigned worker starts the work' })
+  start(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.start(id, user);
+  }
+
+  @Post(':id/complete')
+  @ApiOperation({ summary: 'Assigned worker marks the work complete' })
+  complete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.complete(id, user);
+  }
+
+  @Post(':id/cancel')
+  @ApiOperation({ summary: 'Cancel a job before it is completed' })
+  cancel(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: CancelJobDto) {
+    return this.jobsService.cancel(id, user, dto);
   }
 }

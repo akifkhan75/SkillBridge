@@ -15,7 +15,7 @@ export function useWorkerLocationTracker() {
 
     const startTracking = async () => {
       // Only start tracking if the user is a worker, isTracking is true, and we have a customer to track to
-      if (currentUser?.type !== 'worker' || !trackingState.isTracking || !trackingState.trackedWorkerId /* using trackedWorkerId as customerId for now, need to clarify */) {
+      if (currentUser?.type !== 'worker' || !trackingState.isTracking || !trackingState.jobId) {
         return;
       }
 
@@ -42,9 +42,8 @@ export function useWorkerLocationTracker() {
           dispatch(updateWorkerLocation(coords));
 
           // Emit to customer via socket
-          if (trackingState.trackedWorkerId) {
-            // Note: in worker flow, trackedWorkerId would be the customerId they are navigating to
-            socketService.sendLocation(trackingState.trackedWorkerId, coords.latitude, coords.longitude, coords.heading);
+          if (trackingState.jobId) {
+            socketService.sendLocation(trackingState.jobId, coords.latitude, coords.longitude, coords.heading);
           }
         }
       );
@@ -57,5 +56,5 @@ export function useWorkerLocationTracker() {
         locationSubscription.remove();
       }
     };
-  }, [trackingState.isTracking, trackingState.trackedWorkerId, currentUser?.type, dispatch]);
+  }, [trackingState.isTracking, trackingState.jobId, currentUser?.type, dispatch]);
 }

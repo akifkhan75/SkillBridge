@@ -1,51 +1,39 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let service: AuthService;
-
-  const mockAuthService = {
-    signup: jest.fn(),
-    login: jest.fn(),
+  const svc = {
+    signup: jest.fn(), login: jest.fn(), adminLogin: jest.fn(), refresh: jest.fn(), logout: jest.fn(),
+    me: jest.fn(), listSessions: jest.fn(), revokeSession: jest.fn(), changePassword: jest.fn(),
   };
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    const mod = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: mockAuthService },
-      ],
+      providers: [{ provide: AuthService, useValue: svc }],
     }).compile();
+    controller = mod.get(AuthController);
+  });
+  afterEach(() => jest.resetAllMocks());
 
-    controller = module.get<AuthController>(AuthController);
-    service = module.get<AuthService>(AuthService);
+  it('only the credential endpoints are public', () => {
+    const isPublic = (fn: Function) => Reflect.getMetadata(IS_PUBLIC_KEY, fn) === true;
+    for (const fn of ['signup', 'login', 'adminLogin', 'refresh'] as const) {
+      expect(isPublic(AuthController.prototype[fn])).toBe(true);
+    }
+    for (const fn of ['logout', 'me', 'sessions', 'revokeSession', 'changePassword'] as const) {
+      expect(isPublic(AuthController.prototype[fn])).toBe(false);
+    }
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
-  });
-
-  describe('signup', () => {
-    it('should call authService.signup', async () => {
-      const dto = { email: 'test@example.com', password: 'pass', name: 'Test', type: 'customer' as const };
-      mockAuthService.signup.mockResolvedValue({ token: '123' });
-      const result = await controller.signup(dto);
-      expect(result).toEqual({ token: '123' });
-      expect(mockAuthService.signup).toHaveBeenCalledWith(dto);
-    });
-  });
-
-  describe('login', () => {
-    it('should call authService.login', async () => {
-      const dto = { email: 'test@example.com', password: 'pass' };
-      mockAuthService.login.mockResolvedValue({ token: '123' });
-      const result = await controller.login(dto);
-      expect(result).toEqual({ token: '123' });
-      expect(mockAuthService.login).toHaveBeenCalledWith(dto);
-    });
+  it('logout and password change act on the caller\'s own session', async () => {
+    svc.logout.mockResolvedValue({ success: true });
+    await controller.logout('u1', 's1');
+    expect(svc.logout).toHaveBeenCalledWith('u1', 's1');
+    await controller.changePassword('u1', 's1', { currentPassword: 'a', newPassword: 'b' });
+    expect(svc.changePassword).toHaveBeenCalledWith('u1', 's1', { currentPassword: 'a', newPassword: 'b' });
   });
 });

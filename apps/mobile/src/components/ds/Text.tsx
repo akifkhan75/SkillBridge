@@ -30,20 +30,20 @@ export const Text = ({
   const theme = useTheme();
 
   let fontSize = theme.fontSize.base;
-  let defaultWeight = theme.fontWeight.normal;
+  let defaultWeight: NonNullable<TextProps['weight']> = 'normal';
 
   switch (variant) {
     case 'h1':
       fontSize = theme.fontSize['4xl'];
-      defaultWeight = theme.fontWeight.bold;
+      defaultWeight = 'bold';
       break;
     case 'h2':
       fontSize = theme.fontSize['3xl'];
-      defaultWeight = theme.fontWeight.bold;
+      defaultWeight = 'bold';
       break;
     case 'h3':
       fontSize = theme.fontSize.xl;
-      defaultWeight = theme.fontWeight.semibold;
+      defaultWeight = 'semibold';
       break;
     case 'bodyLarge':
       fontSize = theme.fontSize.lg;
@@ -65,16 +65,16 @@ export const Text = ({
   // Map font weight to Inter font family
   let fontFamily = 'Inter_400Regular';
   switch (activeWeight) {
-    case '500':
+    case 'medium':
       fontFamily = 'Inter_500Medium';
       break;
-    case '600':
+    case 'semibold':
       fontFamily = 'Inter_600SemiBold';
       break;
-    case '700':
+    case 'bold':
       fontFamily = 'Inter_700Bold';
       break;
-    case '800':
+    case 'extrabold':
       fontFamily = 'Inter_800ExtraBold';
       break;
   }

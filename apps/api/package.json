@@ -16,9 +16,14 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "db:seed:catalog": "ts-node prisma/seed-catalog.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/s3-request-presigner": "^3",
+    "@fixli/shared": "workspace:*",
     "@google/generative-ai": "^0.24.1",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",
@@ -31,7 +36,6 @@
     "@nestjs/throttler": "^6.7.1",
     "@nestjs/websockets": "^10.4.0",
     "@prisma/client": "^5.20.0",
-    "@fixli/shared": "workspace:*",
     "bcryptjs": "^2.4.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",

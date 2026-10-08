@@ -1,49 +1,39 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
 
 describe('UsersController', () => {
   let controller: UsersController;
-  let service: UsersService;
-
-  const mockUsersService = {
-    findAll: jest.fn(),
-    findById: jest.fn(),
-  };
+  const svc = { findAll: jest.fn(), findById: jest.fn() };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [
-        { provide: UsersService, useValue: mockUsersService },
-      ],
+      providers: [{ provide: UsersService, useValue: svc }],
     }).compile();
+    controller = module.get(UsersController);
+  });
+  afterEach(() => jest.resetAllMocks());
 
-    controller = module.get<UsersController>(UsersController);
-    service = module.get<UsersService>(UsersService);
+  it('listing all users is admin-only (not public)', () => {
+    expect(Reflect.getMetadata(ROLES_KEY, UsersController.prototype.findAll)).toEqual(['admin']);
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('a user can read themselves', async () => {
+    svc.findById.mockResolvedValue({ id: 'u1' });
+    await expect(controller.findOne('u1', 'u1', 'customer')).resolves.toEqual({ id: 'u1' });
   });
 
-  describe('findAll', () => {
-    it('should call findAll', async () => {
-      mockUsersService.findAll.mockResolvedValue([]);
-      const result = await controller.findAll();
-      expect(result).toEqual([]);
-      expect(mockUsersService.findAll).toHaveBeenCalled();
-    });
+  it("a user cannot read someone else's record", () => {
+    expect(() => controller.findOne('u2', 'u1', 'customer')).toThrow(NotFoundException);
+    expect(svc.findById).not.toHaveBeenCalled();
   });
 
-  describe('findOne', () => {
-    it('should call findById', async () => {
-      mockUsersService.findById.mockResolvedValue({ id: '1' });
-      const result = await controller.findOne('1');
-      expect(result).toEqual({ id: '1' });
-      expect(mockUsersService.findById).toHaveBeenCalledWith('1');
-    });
+  it('an admin can read anyone', async () => {
+    svc.findById.mockResolvedValue({ id: 'u2' });
+    await controller.findOne('u2', 'a1', 'admin');
+    expect(svc.findById).toHaveBeenCalledWith('u2');
   });
 });

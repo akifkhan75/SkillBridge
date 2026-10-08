@@ -1,52 +1,50 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { AuthGuard } from '@nestjs/passport';
 import { DisputesService } from './disputes.service';
+import { CreateDisputeDto, ResolveDisputeDto } from './dto/dispute.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
 
 @ApiTags('disputes')
-@Controller('disputes')
-@UseGuards(AuthGuard('jwt'))
 @ApiBearerAuth()
+@Controller('disputes')
 export class DisputesController {
   constructor(private readonly disputesService: DisputesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Raise a new dispute (Customer/Worker)' })
-  createDispute(
-    @CurrentUser('id') userId: string,
-    @Body() body: { jobRequestId: string; reason: string; description?: string }
-  ) {
-    return this.disputesService.createDispute(userId, body);
+  @Roles('customer', 'worker')
+  @ApiOperation({ summary: 'Raise a dispute on a job you are part of' })
+  createDispute(@CurrentUser() user: { id: string; type: string }, @Body() dto: CreateDisputeDto) {
+    return this.disputesService.createDispute(user, dto);
   }
 
   @Get('my-disputes')
-  @ApiOperation({ summary: 'Get disputes raised by current user' })
+  @ApiOperation({ summary: 'Disputes raised by you' })
   getMyDisputes(@CurrentUser('id') userId: string) {
     return this.disputesService.getUserDisputes(userId);
   }
 
   @Get('all')
-  @ApiOperation({ summary: 'Get all disputes (Admin only)' })
-  getAllDisputes(@CurrentUser('type') type: string) {
-    if (type !== 'admin') throw new ForbiddenException('Admin access required');
+  @Roles('admin')
+  @ApiOperation({ summary: 'All disputes (admin)' })
+  getAllDisputes() {
     return this.disputesService.getAllDisputes();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a dispute by ID' })
-  getDisputeById(@Param('id') id: string) {
-    return this.disputesService.getDisputeById(id);
+  @ApiOperation({ summary: 'A dispute you raised or are a party to' })
+  getDisputeById(@Param('id') id: string, @CurrentUser() user: { id: string; type: string }) {
+    return this.disputesService.getDisputeById(id, user);
   }
 
   @Patch(':id/resolve')
-  @ApiOperation({ summary: 'Resolve/Update a dispute (Admin only)' })
+  @Roles('admin')
+  @ApiOperation({ summary: 'Update/resolve a dispute (admin)' })
   updateDisputeStatus(
-    @CurrentUser('type') type: string,
     @Param('id') id: string,
-    @Body() body: { status: string; resolution?: string }
+    @Body() dto: ResolveDisputeDto,
+    @CurrentUser('id') adminId: string,
   ) {
-    if (type !== 'admin') throw new ForbiddenException('Admin access required');
-    return this.disputesService.updateDisputeStatus(id, body.status, body.resolution);
+    return this.disputesService.updateDisputeStatus(id, dto, adminId);
   }
 }

@@ -63,15 +63,6 @@ export default function CustomerLayout() {
         }}
       />
       <Tabs.Screen
-        name="chat"
-        options={{
-          title: t('nav.chat') || 'Chat',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
         name="job/[id]"
         options={{
           href: null,

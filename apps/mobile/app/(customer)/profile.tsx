@@ -1,106 +1,58 @@
-import React from 'react';
-import { View, SafeAreaView, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useAppSelector, useAppDispatch } from '../../src/hooks/useRedux';
+import React, { useCallback } from 'react';
+import { View, TouchableOpacity } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { formatPhoneDisplay } from '@fixli/shared';
+import { useAppDispatch, useAppSelector } from '../../src/hooks/useRedux';
 import { selectCurrentUser, logoutUser } from '../../src/store/authSlice';
+import { selectAppearance } from '../../src/store/uiSlice';
 import { useTheme } from '../../src/hooks/useTheme';
 import { useI18n } from '../../src/hooks/useI18n';
+import { useApi } from '../../src/hooks/useApi';
+import { Screen } from '../../src/components/ds/Screen';
 import { Text } from '../../src/components/ds/Text';
 import { Avatar } from '../../src/components/ds/Avatar';
+import { GroupedList } from '../../src/components/ds/GroupedList';
+import * as api from '../../src/services/api';
+
+const LANG_LABEL = { en: 'English', ur: 'اردو', ar: 'العربية' } as const;
+const APPEARANCE_LABEL = { system: 'Automatic', light: 'Light', dark: 'Dark' } as const;
 
 export default function AccountScreen() {
-  const dispatch = useAppDispatch();
-  const currentUser = useAppSelector(selectCurrentUser);
   const theme = useTheme();
-  const { t, locale, setLanguage } = useI18n();
+  const dispatch = useAppDispatch();
+  const user = useAppSelector(selectCurrentUser);
+  const appearance = useAppSelector(selectAppearance);
+  const { locale, t } = useI18n();
+  const addresses = useApi(api.getAddresses);
+  useFocusEffect(useCallback(() => { addresses.reload(); }, [addresses.reload]));
 
-  const handleLanguageToggle = () => {
-    if (locale === 'en') setLanguage('ar');
-    else if (locale === 'ar') setLanguage('ur');
-    else setLanguage('en');
-  };
-
-  const getLangLabel = () => {
-    if (locale === 'en') return 'English';
-    if (locale === 'ar') return 'العربية (Arabic)';
-    return 'اردو (Urdu)';
-  };
-
-  const MENU_GROUPS = [
-    [
-      { id: 'addresses', label: 'Saved Addresses', icon: 'location', value: '2' },
-      { id: 'payments', label: 'Payment Methods', icon: 'card', value: null },
-    ],
-    [
-      { id: 'language', label: t('settings.language'), icon: 'language', value: getLangLabel(), onPress: handleLanguageToggle },
-      { id: 'appearance', label: t('settings.darkMode'), icon: 'moon', value: 'Dark' },
-    ],
-    [
-      { id: 'help', label: 'Help / Support', icon: 'help-circle', value: null },
-    ]
-  ];
+  const go = (path: string) => () => router.push(path as any);
 
   return (
-    <SafeAreaView style={StyleSheet.flatten([styles.container, { backgroundColor: theme.colors.background }])}>
-      <View style={styles.header}>
-        <Text variant="h1" weight="bold" color={theme.colors.textPrimary}>{t('nav.profile') || 'Account'}</Text>
-      </View>
-      
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.profileCard}>
-          <Avatar name={currentUser?.name || 'Guest'} imageUrl={currentUser?.profileImageUrl} size={80} />
-          <View style={styles.profileInfo}>
-            <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{currentUser?.name || 'Guest User'}</Text>
-            <Text variant="body" color={theme.colors.textSecondary}>{currentUser?.email || currentUser?.phone || 'No contact info'}</Text>
-          </View>
+    <Screen title={t('nav.profile') || 'Account'}>
+      <TouchableOpacity onPress={go('/edit-profile')} accessibilityRole="button" accessibilityLabel="Edit profile" activeOpacity={0.8}
+        style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+        <Avatar name={user?.name} imageUrl={user?.profileImageUrl} size="xl" />
+        <View style={{ marginStart: 16, flex: 1 }}>
+          <Text variant="h2" weight="bold" color={theme.colors.textPrimary}>{user?.name}</Text>
+          <Text variant="body" color={theme.colors.textSecondary}>{formatPhoneDisplay(user?.phone)}</Text>
+          <Text variant="bodySmall" weight="medium" color={theme.colors.primary} style={{ marginTop: 2 }}>Edit profile</Text>
         </View>
+      </TouchableOpacity>
 
-        {MENU_GROUPS.map((group, gIndex) => (
-          <View key={gIndex} style={[styles.menuGroup, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}>
-            {group.map((item, iIndex) => (
-              <TouchableOpacity key={item.id} style={styles.menuRow} activeOpacity={0.7} onPress={item.onPress}>
-                <View style={[styles.iconBox, { backgroundColor: theme.colors.primary + '15' }]}>
-                  <Ionicons name={item.icon as any} size={20} color={theme.colors.primary} />
-                </View>
-                <Text variant="body" weight="medium" color={theme.colors.textPrimary} style={{ flex: 1, marginLeft: 16 }}>
-                  {item.label}
-                </Text>
-                {item.value && (
-                  <Text variant="bodySmall" color={theme.colors.textTertiary} style={{ marginRight: 8 }}>
-                    {item.value}
-                  </Text>
-                )}
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
-                {/* Divider */}
-                {iIndex < group.length - 1 && (
-                  <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-
-        <TouchableOpacity
-          style={[styles.logoutButton, { backgroundColor: theme.colors.error + '20', borderRadius: theme.borderRadius.xl }]}
-          onPress={() => dispatch(logoutUser())}
-          activeOpacity={0.7}
-        >
-          <Text variant="bodyLarge" weight="bold" color={theme.colors.error}>{t('common.logout') || 'Log Out'}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <GroupedList items={[
+        { id: 'addresses', label: 'Saved addresses', icon: 'location-outline', value: addresses.data ? String(addresses.data.length) : undefined, onPress: go('/addresses') },
+      ]} />
+      <GroupedList items={[
+        { id: 'prefs', label: 'Language & appearance', icon: 'language-outline', value: `${LANG_LABEL[locale]} · ${APPEARANCE_LABEL[appearance]}`, onPress: go('/preferences') },
+      ]} />
+      <GroupedList title="Security" items={[
+        { id: 'password', label: 'Change password', icon: 'lock-closed-outline', onPress: go('/change-password') },
+        { id: 'devices', label: 'Your devices', icon: 'phone-portrait-outline', onPress: go('/devices') },
+      ]} />
+      <GroupedList items={[
+        { id: 'logout', label: t('common.logout') || 'Log out', icon: 'log-out-outline', destructive: true, onPress: () => dispatch(logoutUser()) },
+      ]} />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16 },
-  content: { padding: 20, paddingBottom: 60 },
-  profileCard: { flexDirection: 'row', alignItems: 'center', marginBottom: 32 },
-  profileInfo: { marginLeft: 16, flex: 1 },
-  menuGroup: { marginBottom: 24, overflow: 'hidden' },
-  menuRow: { flexDirection: 'row', alignItems: 'center', padding: 16, minHeight: 60, position: 'relative' },
-  iconBox: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  divider: { position: 'absolute', bottom: 0, left: 64, right: 0, height: 1 },
-  logoutButton: { padding: 16, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
-});

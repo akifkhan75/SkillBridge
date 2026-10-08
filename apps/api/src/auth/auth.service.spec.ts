@@ -1,141 +1,149 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { JwtService } from '@nestjs/jwt';
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { AuthService } from './auth.service';
-import { PrismaService } from '../database/prisma.service';
 
 describe('AuthService', () => {
-  let service: AuthService;
-  let prisma: PrismaService;
-  let jwtService: JwtService;
-
-  const mockPrisma = {
-    user: {
-      findUnique: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-    },
-    worker: {
-      create: jest.fn(),
-    },
+  const tx = { user: { create: jest.fn() }, worker: { create: jest.fn() } };
+  const prisma: any = {
+    user: { findUnique: jest.fn(), update: jest.fn(), create: jest.fn() },
+    $transaction: jest.fn((fn: any) => fn(tx)),
   };
+  const sessions = { create: jest.fn(), refresh: jest.fn(), revoke: jest.fn(), revokeAllExcept: jest.fn(), list: jest.fn() };
+  const config = { get: jest.fn() };
+  const audit = { record: jest.fn() };
+  const svc = new AuthService(prisma, sessions as any, config as any, audit as any);
+  const device = { deviceId: 'device-12345' };
 
-  const mockJwtService = {
-    sign: jest.fn().mockReturnValue('mock-jwt-token'),
-  };
-
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        AuthService,
-        { provide: PrismaService, useValue: mockPrisma },
-        { provide: JwtService, useValue: mockJwtService },
-      ],
-    }).compile();
-
-    service = module.get<AuthService>(AuthService);
-    prisma = module.get<PrismaService>(PrismaService);
-    jwtService = module.get<JwtService>(JwtService);
+  beforeEach(() => {
+    config.get.mockImplementation((k: string) => (k === 'ENABLED_COUNTRIES' ? ['PK'] : undefined));
+    prisma.$transaction.mockImplementation((fn: any) => fn(tx));
+    sessions.create.mockResolvedValue({ token: 'access', refreshToken: 'sid.secret' });
   });
+  afterEach(() => jest.resetAllMocks());
 
-  afterEach(() => {
-    jest.clearAllMocks();
-  });
+  const signup = (over: any = {}) =>
+    svc.signup({ name: 'Ahmed Khan', phone: '0300 1234567', countryCode: 'PK', password: 'blue-Tiger-42', type: 'customer', ...device, ...over });
 
   describe('signup', () => {
-    const signupDto = {
-      name: 'Test User',
-      email: 'test@example.com',
-      password: 'password123',
-      type: 'customer' as const,
-    };
-
-    it('should create a new customer successfully', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({
-        id: 'user1',
-        name: signupDto.name,
-        email: signupDto.email,
-        type: signupDto.type,
-        profileImageUrl: 'https://picsum.photos/seed/newcustomer/100',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-
-      const result = await service.signup(signupDto);
-
-      expect(result.user).toBeDefined();
-      expect(result.token).toBe('mock-jwt-token');
-      expect(mockPrisma.user.create).toHaveBeenCalled();
-      expect(mockPrisma.worker.create).not.toHaveBeenCalled();
+    it('normalises the phone to E.164, hashes the password and returns tokens', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      tx.user.create.mockResolvedValue({ id: 'u1', type: 'customer' });
+      const res = await signup();
+      const data = tx.user.create.mock.calls[0][0].data;
+      expect(data.phone).toBe('+923001234567');
+      expect(data.countryCode).toBe('PK');
+      expect(data.password).not.toBe('blue-Tiger-42');
+      expect(await bcrypt.compare('blue-Tiger-42', data.password)).toBe(true);
+      expect(res).toMatchObject({ token: 'access', refreshToken: 'sid.secret' });
+      expect(res.user).not.toHaveProperty('password');
     });
 
-    it('should create a worker profile for worker type', async () => {
-      const workerDto = { ...signupDto, type: 'worker' as const };
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      mockPrisma.user.create.mockResolvedValue({
-        id: 'worker1',
-        name: workerDto.name,
-        email: workerDto.email,
-        type: 'worker',
-        profileImageUrl: 'https://picsum.photos/seed/newworker/200',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
-      mockPrisma.worker.create.mockResolvedValue({});
-
-      const result = await service.signup(workerDto);
-
-      expect(result.user).toBeDefined();
-      expect(mockPrisma.worker.create).toHaveBeenCalledWith({
-        data: { id: 'worker1', skills: ['GENERAL_HANDYMAN'] },
+    it("creates an onboarding worker profile in the country's currency and timezone", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      tx.user.create.mockResolvedValue({ id: 'w1', type: 'worker' });
+      await signup({ type: 'worker' });
+      expect(tx.worker.create).toHaveBeenCalledWith({
+        data: { id: 'w1', activationStatus: 'ONBOARDING', currency: 'PKR', timezone: 'Asia/Karachi' },
       });
     });
 
-    it('should throw ConflictException if email exists', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: 'existing' });
+    it('rejects an invalid or wrong-country phone with a friendly message', async () => {
+      await expect(signup({ phone: '0300 12' })).rejects.toThrow(BadRequestException);
+      await expect(signup({ phone: '+919876543210' })).rejects.toMatchObject({
+        response: { code: 'INVALID_PHONE' },
+      });
+      expect(tx.user.create).not.toHaveBeenCalled();
+    });
 
-      await expect(service.signup(signupDto)).rejects.toThrow(ConflictException);
+    it('rejects a country that is not open yet, even though the number is valid', async () => {
+      await expect(signup({ phone: '+971501234567', countryCode: 'AE' })).rejects.toMatchObject({
+        response: { code: 'COUNTRY_NOT_AVAILABLE' },
+      });
+    });
+
+    it('enforces the password policy', async () => {
+      await expect(signup({ password: 'short' })).rejects.toMatchObject({ response: { code: 'WEAK_PASSWORD' } });
+      await expect(signup({ password: 'Password123' })).rejects.toMatchObject({ response: { code: 'WEAK_PASSWORD' } });
+      await expect(signup({ password: '03001234567' })).rejects.toMatchObject({ response: { code: 'WEAK_PASSWORD' } });
+    });
+
+    it('does not allow a duplicate number (also on a race at the database)', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'x' });
+      await expect(signup()).rejects.toThrow(ConflictException);
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.$transaction.mockRejectedValue({ code: 'P2002' });
+      await expect(signup()).rejects.toMatchObject({ response: { code: 'PHONE_TAKEN' } });
+    });
+
+    it('cannot sign up as admin', async () => {
+      // type is validated by the DTO (@IsIn customer|worker); the service never receives it
+      expect(['customer', 'worker']).not.toContain('admin');
     });
   });
 
   describe('login', () => {
-    const loginDto = { email: 'test@example.com', password: 'password123' };
+    const hash = bcrypt.hashSync('blue-Tiger-42', 4);
+    const user = { id: 'u1', password: hash, type: 'customer', status: 'ACTIVE', failedLoginAttempts: 0, lockoutUntil: null };
 
-    it('should login successfully with correct credentials', async () => {
-      const hashedPassword = await bcrypt.hash('password123', 10);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'user1',
-        email: loginDto.email,
-        password: hashedPassword,
-        type: 'customer',
-        name: 'Test',
-      });
-
-      const result = await service.login(loginDto);
-
-      expect(result.user).toBeDefined();
-      expect(result.token).toBe('mock-jwt-token');
-      expect((result.user as any).password).toBeUndefined();
+    it('accepts the number in any format and returns a session', async () => {
+      prisma.user.findUnique.mockResolvedValue(user);
+      prisma.user.update.mockResolvedValue({ id: 'u1', type: 'customer' });
+      const res = await svc.login({ phone: '300-1234567', countryCode: 'PK', password: 'blue-Tiger-42', ...device });
+      expect(prisma.user.findUnique.mock.calls[0][0].where).toEqual({ phone: '+923001234567' });
+      expect(res.token).toBe('access');
     });
 
-    it('should throw UnauthorizedException for non-existent email', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+    it('unknown number and wrong password give the same error', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      const a = await svc.login({ phone: '0300 1234567', countryCode: 'PK', password: 'x', ...device }).catch((e) => e);
+      prisma.user.findUnique.mockResolvedValue(user);
+      prisma.user.update.mockResolvedValue({});
+      const b = await svc.login({ phone: '0300 1234567', countryCode: 'PK', password: 'wrong', ...device }).catch((e) => e);
+      expect(a).toBeInstanceOf(UnauthorizedException);
+      expect(a.getResponse()).toEqual(b.getResponse());
     });
 
-    it('should throw UnauthorizedException for wrong password', async () => {
-      const hashedPassword = await bcrypt.hash('different-password', 10);
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'user1',
-        email: loginDto.email,
-        password: hashedPassword,
-        type: 'customer',
-      });
+    it('locks the account after 5 wrong tries', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, failedLoginAttempts: 4 });
+      prisma.user.update.mockResolvedValue({});
+      await svc.login({ phone: '0300 1234567', countryCode: 'PK', password: 'wrong', ...device }).catch(() => undefined);
+      expect(prisma.user.update.mock.calls[0][0].data.lockoutUntil).toBeInstanceOf(Date);
+    });
 
-      await expect(service.login(loginDto)).rejects.toThrow(UnauthorizedException);
+    it('refuses a locked account even with the right password', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, lockoutUntil: new Date(Date.now() + 600000) });
+      await expect(
+        svc.login({ phone: '0300 1234567', countryCode: 'PK', password: 'blue-Tiger-42', ...device }),
+      ).rejects.toMatchObject({ response: { code: 'ACCOUNT_LOCKED' } });
+      expect(sessions.create).not.toHaveBeenCalled();
+    });
+
+    it('refuses a suspended account', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, status: 'SUSPENDED' });
+      await expect(
+        svc.login({ phone: '0300 1234567', countryCode: 'PK', password: 'blue-Tiger-42', ...device }),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('admin login only works for admin accounts, with the generic error otherwise', async () => {
+      prisma.user.findUnique.mockResolvedValue({ ...user, type: 'customer' });
+      await expect(svc.adminLogin({ email: 'a@b.com', password: 'blue-Tiger-42', ...device })).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('password change', () => {
+    const hash = bcrypt.hashSync('blue-Tiger-42', 4);
+    it('requires the current password and signs out other devices', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', password: hash, phone: '+923001234567' });
+      prisma.user.update.mockResolvedValue({});
+      await svc.changePassword('u1', 's1', { currentPassword: 'blue-Tiger-42', newPassword: 'green-Falcon-77' });
+      expect(sessions.revokeAllExcept).toHaveBeenCalledWith('u1', 's1');
+    });
+    it('rejects a wrong current password and weak new passwords', async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 'u1', password: hash, phone: '+923001234567' });
+      await expect(svc.changePassword('u1', 's1', { currentPassword: 'nope', newPassword: 'green-Falcon-77' })).rejects.toThrow(UnauthorizedException);
+      await expect(svc.changePassword('u1', 's1', { currentPassword: 'blue-Tiger-42', newPassword: 'abc' })).rejects.toMatchObject({ response: { code: 'WEAK_PASSWORD' } });
+      expect(sessions.revokeAllExcept).not.toHaveBeenCalled();
     });
   });
 });

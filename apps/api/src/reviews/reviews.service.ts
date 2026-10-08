@@ -1,51 +1,67 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { JobAccessService } from '../common/access/job-access.service';
+import { CreateReviewDto } from './dto/review.dto';
 
 @Injectable()
 export class ReviewsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: JobAccessService,
+  ) {}
 
-  async create(reviewerId: string, data: any) {
-    const existingReview = await this.prisma.review.findFirst({
-      where: {
-        reviewerId,
-        targetId: data.targetId,
-      }
-    });
+  async create(user: { id: string; type: string }, dto: CreateReviewDto) {
+    if (user.type === 'admin') throw new ForbiddenException('Admins cannot leave reviews');
 
-    if (existingReview) {
-      throw new ConflictException('You have already reviewed this user');
+    const job = await this.access.requireParticipant(dto.jobRequestId, user);
+    if (job.status !== 'COMPLETED') {
+      throw new ConflictException('You can only review a job after it is completed');
     }
+    if (!job.assignedWorkerId) throw new ConflictException('This job had no worker to review');
 
-    const review = await this.prisma.review.create({
-      data: {
-        reviewerId,
-        targetId: data.targetId,
-        rating: data.rating,
-        comment: data.comment,
-      },
-    });
+    // The reviewee is always the other party; the client never chooses who is reviewed.
+    const targetId = user.id === job.customerId ? job.assignedWorkerId : job.customerId;
 
-    const worker = await this.prisma.worker.findUnique({ where: { id: data.targetId } });
-    if (worker) {
-      const allReviews = await this.prisma.review.findMany({ where: { targetId: data.targetId } });
-      const avg = allReviews.reduce((acc, curr) => acc + curr.rating, 0) / allReviews.length;
-      await this.prisma.worker.update({
-        where: { id: data.targetId },
-        data: { rating: avg },
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.review.findUnique({
+        where: { jobRequestId_reviewerId: { jobRequestId: job.id, reviewerId: user.id } },
+        select: { id: true },
       });
-    }
+      if (existing) throw new ConflictException('You have already reviewed this job');
 
-    return review;
+      const review = await tx.review.create({
+        data: {
+          jobRequestId: job.id,
+          reviewerId: user.id,
+          targetId,
+          rating: dto.rating,
+          comment: dto.comment,
+        },
+      });
+
+      if (targetId === job.assignedWorkerId) {
+        const agg = await tx.review.aggregate({ where: { targetId }, _avg: { rating: true } });
+        await tx.worker.update({
+          where: { id: targetId },
+          data: { rating: Math.round((agg._avg.rating ?? 0) * 10) / 10 },
+        });
+      }
+      return review;
+    });
   }
 
-  async findByTarget(targetId: string) {
+  findByTarget(targetId: string) {
     return this.prisma.review.findMany({
       where: { targetId },
-      include: {
-        reviewer: { select: { id: true, name: true, profileImageUrl: true } }
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        reviewer: { select: { id: true, name: true, profileImageUrl: true } },
       },
       orderBy: { createdAt: 'desc' },
+      take: 50,
     });
   }
 }

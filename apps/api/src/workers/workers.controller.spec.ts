@@ -1,70 +1,40 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { WorkersController } from './workers.controller';
 import { WorkersService } from './workers.service';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
 
 describe('WorkersController', () => {
   let controller: WorkersController;
-  let service: WorkersService;
-
-  const mockWorkersService = {
-    findAll: jest.fn(),
-    findById: jest.fn(),
-    update: jest.fn(),
+  const svc = {
+    findAll: jest.fn(), findPublicById: jest.fn(), findOwn: jest.fn(), update: jest.fn(), setSkills: jest.fn(),
+    setHours: jest.fn(), addPortfolio: jest.fn(), removePortfolio: jest.fn(), submitVerification: jest.fn(), submitForReview: jest.fn(),
   };
-
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [WorkersController],
-      providers: [
-        { provide: WorkersService, useValue: mockWorkersService },
-      ],
-    }).compile();
+    const mod = await Test.createTestingModule({ controllers: [WorkersController], providers: [{ provide: WorkersService, useValue: svc }] }).compile();
+    controller = mod.get(WorkersController);
+  });
+  afterEach(() => jest.resetAllMocks());
 
-    controller = module.get<WorkersController>(WorkersController);
-    service = module.get<WorkersService>(WorkersService);
+  it('every "me" route is worker-only', () => {
+    for (const fn of ['me', 'update', 'setSkills', 'setHours', 'addPortfolio', 'removePortfolio', 'submitVerification', 'submit'] as const) {
+      expect(Reflect.getMetadata(ROLES_KEY, WorkersController.prototype[fn])).toEqual(['worker']);
+    }
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  it('should be defined', () => {
-    expect(controller).toBeDefined();
+  it('acts on the caller, never on an id from the URL, for edits', async () => {
+    await controller.update('w1', { bio: 'x' });
+    expect(svc.update).toHaveBeenCalledWith('w1', { bio: 'x' });
+    await controller.setSkills('w1', { categoryIds: ['c1'] });
+    expect(svc.setSkills).toHaveBeenCalledWith('w1', { categoryIds: ['c1'] });
   });
 
-  describe('findAll', () => {
-    it('should call findAll', async () => {
-      mockWorkersService.findAll.mockResolvedValue([]);
-      const result = await controller.findAll('PLUMBING', 4);
-      expect(result).toEqual([]);
-      expect(mockWorkersService.findAll).toHaveBeenCalledWith({ skill: 'PLUMBING', minRating: 4 });
-    });
+  it('public profile passes the viewer so photo-hiding can apply', async () => {
+    await controller.findOne('w9', { id: 'c1', type: 'customer' });
+    expect(svc.findPublicById).toHaveBeenCalledWith('w9', { id: 'c1', type: 'customer' });
   });
 
-  describe('findOne', () => {
-    it('should call findById', async () => {
-      mockWorkersService.findById.mockResolvedValue({ id: '1' });
-      const result = await controller.findOne('1');
-      expect(result).toEqual({ id: '1' });
-      expect(mockWorkersService.findById).toHaveBeenCalledWith('1');
-    });
-  });
-
-  describe('update', () => {
-    it('should call update', async () => {
-      const dto = { skills: ['PLUMBING'] } as any;
-      mockWorkersService.update.mockResolvedValue({ id: '1' });
-      const result = await controller.update('1', 'user1', 'worker', dto);
-      expect(result).toEqual({ id: '1' });
-      expect(mockWorkersService.update).toHaveBeenCalledWith('1', 'user1', 'worker', dto);
-    });
-  });
-
-  describe('replace', () => {
-    it('should call update', async () => {
-      const dto = { skills: ['PLUMBING'] } as any;
-      mockWorkersService.update.mockResolvedValue({ id: '1' });
-      const result = await controller.replace('1', 'user1', 'worker', dto);
-      expect(result).toEqual({ id: '1' });
-      expect(mockWorkersService.update).toHaveBeenCalledWith('1', 'user1', 'worker', dto);
-    });
+  it('has no generic update-by-id route', () => {
+    expect((controller as any).replace).toBeUndefined();
+    expect(controller.update.length).toBe(2);
   });
 });

@@ -1,64 +1,51 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, spacing, fontSize, fontWeight } from '../../../../src/theme';
-import { CATEGORIES } from '@fixli/shared';
+import { useTheme } from '../../../../src/hooks/useTheme';
+import { useI18n } from '../../../../src/hooks/useI18n';
+import { useApi } from '../../../../src/hooks/useApi';
+import { Screen } from '../../../../src/components/ds/Screen';
+import { Text } from '../../../../src/components/ds/Text';
+import { ErrorState, LoadingState } from '../../../../src/components/ds/EmptyState';
+import { getCatalog } from '../../../../src/services/api';
+import { humanize, localizedName } from '../../../../src/utils/catalog';
 
 export default function CategoryScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const theme = colors.dark;
+  const theme = useTheme();
+  const { locale } = useI18n();
+  const { data, loading, error, reload } = useApi(getCatalog);
+  const category = data?.find((c) => c.id === id);
 
-  const category = CATEGORIES.find(c => c.id === id);
+  if (loading && !data) return <Screen title="Services" back><LoadingState /></Screen>;
+  if (error && !data) return <Screen title="Services" back><ErrorState message={error} onRetry={reload} /></Screen>;
+  if (!category) return <Screen title="Services" back><Text variant="body" color={theme.colors.textSecondary}>We couldn't find that service.</Text></Screen>;
+
+  const title = localizedName({ name: category.translations?.en?.name ?? humanize(category.name), translations: category.translations }, locale);
+  const start = (issueCode?: string) => router.push({ pathname: '/(customer)/request-service', params: { categoryId: category.id, ...(issueCode ? { issue: issueCode } : {}) } } as any);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+    <Screen title={title} back>
+      <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>What's the problem?</Text>
+      {category.issues.map((issue) => (
+        <TouchableOpacity
+          key={issue.id}
+          onPress={() => start(issue.code)}
+          accessibilityRole="button"
+          accessibilityLabel={localizedName(issue, locale)}
+          activeOpacity={0.8}
+          style={{ backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.xl, paddingHorizontal: 16, minHeight: 56, marginBottom: 10, flexDirection: 'row', alignItems: 'center' }}
+        >
+          <Text variant="bodyLarge" color={theme.colors.textPrimary} style={{ flex: 1 }}>{localizedName(issue, locale)}</Text>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>
-          {category ? category.nameEnum.replace(/_/g, ' ') : 'Category'}
-        </Text>
-      </View>
-      <View style={styles.content}>
-        {category ? (
-          <>
-            <View style={[styles.iconContainer, { backgroundColor: category.color + '20' }]}>
-              <Ionicons name="construct" size={48} color={category.color} />
-            </View>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {category.subCategories.length} sub-categories available
-            </Text>
-            {category.subCategories.map((sub, idx) => (
-              <TouchableOpacity 
-                key={sub.id} 
-                style={[styles.subCard, { backgroundColor: theme.surfaceElevated }]}
-                activeOpacity={0.7}
-                onPress={() => router.push('/(customer)/chat')}
-              >
-                <Text style={{ color: theme.textPrimary, fontSize: fontSize.base, textTransform: 'capitalize' }}>
-                  {sub.name.split('.').pop()?.replace(/_/g, ' ')}
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color={theme.textTertiary} />
-              </TouchableOpacity>
-            ))}
-          </>
-        ) : (
-          <Text style={{ color: theme.textSecondary }}>Category not found</Text>
-        )}
-      </View>
-    </SafeAreaView>
+      ))}
+      <TouchableOpacity onPress={() => start()} accessibilityRole="button" activeOpacity={0.8}
+        style={{ borderColor: theme.colors.border, borderWidth: 1.5, borderRadius: theme.borderRadius.xl, paddingHorizontal: 16, minHeight: 56, marginTop: 6, flexDirection: 'row', alignItems: 'center' }}>
+        <Text variant="bodyLarge" color={theme.colors.primary} weight="semibold" style={{ flex: 1 }}>Something else</Text>
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.primary} />
+      </TouchableOpacity>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', padding: spacing.xl, borderBottomWidth: 1, borderBottomColor: '#1F1F35' },
-  backButton: { marginRight: spacing.md },
-  title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold },
-  content: { padding: spacing.xl, alignItems: 'center' },
-  iconContainer: { width: 80, height: 80, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.xl },
-  subtitle: { fontSize: fontSize.base, marginBottom: spacing.xl },
-  subCard: { width: '100%', flexDirection: 'row', justifyContent: 'space-between', padding: spacing.lg, borderRadius: 12, marginBottom: spacing.sm },
-});

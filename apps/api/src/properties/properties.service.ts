@@ -1,32 +1,39 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { CreatePropertyDto, CreateAssetDto, CreateWarrantyDto } from './dto/property.dto';
 
 @Injectable()
 export class PropertiesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createProperty(userId: string, data: any) {
-    return this.prisma.property.create({
-      data: { ...data, userId }
-    });
+  createProperty(userId: string, dto: CreatePropertyDto) {
+    return this.prisma.property.create({ data: { ...dto, userId } });
   }
 
-  async getUserProperties(userId: string) {
+  getUserProperties(userId: string) {
     return this.prisma.property.findMany({
       where: { userId },
-      include: { assets: { include: { warranties: true } } }
+      include: { assets: { include: { warranties: true } } },
+      take: 50,
     });
   }
 
-  async addAsset(propertyId: string, data: any) {
+  async addAsset(userId: string, propertyId: string, dto: CreateAssetDto) {
+    const property = await this.prisma.property.findFirst({ where: { id: propertyId, userId }, select: { id: true } });
+    if (!property) throw new NotFoundException('Property not found');
     return this.prisma.asset.create({
-      data: { ...data, propertyId }
+      data: { ...dto, installDate: dto.installDate ? new Date(dto.installDate) : undefined, propertyId },
     });
   }
 
-  async addWarranty(assetId: string, data: any) {
+  async addWarranty(userId: string, assetId: string, dto: CreateWarrantyDto) {
+    const asset = await this.prisma.asset.findFirst({
+      where: { id: assetId, property: { userId } },
+      select: { id: true },
+    });
+    if (!asset) throw new NotFoundException('Asset not found');
     return this.prisma.warranty.create({
-      data: { ...data, assetId, expirationDate: new Date(data.expirationDate) }
+      data: { ...dto, expirationDate: new Date(dto.expirationDate), assetId },
     });
   }
 }

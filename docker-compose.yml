@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -7,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-fixli}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fixli_secret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
       POSTGRES_DB: ${POSTGRES_DB:-fixli}
     ports:
       - '5434:5432'
@@ -25,7 +23,7 @@ services:
     restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@fixli.dev}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD must be set in .env}
     ports:
       - '5050:80'
     depends_on:
@@ -41,8 +39,8 @@ services:
     command: sh -c "npm install -g pnpm && pnpm install && pnpm run db:generate && pnpm run dev:api"
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-fixli}:${POSTGRES_PASSWORD:-fixli_secret}@postgres:5432/${POSTGRES_DB:-fixli}?schema=public
-      JWT_SECRET: ${JWT_SECRET:-super-secret-jwt-key-change-in-production}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fixli}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fixli}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (openssl rand -base64 48)}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
       PORT: 3002
       NODE_ENV: ${NODE_ENV:-development}

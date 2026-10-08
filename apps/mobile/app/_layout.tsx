@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { Provider } from 'react-redux';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { store } from '../src/store';
-import { useAppSelector } from '../src/hooks/useRedux';
-import { selectCurrentUser } from '../src/store/authSlice';
+import { useAppSelector, useAppDispatch } from '../src/hooks/useRedux';
+import { selectCurrentUser, selectSessionRestored, restoreSession } from '../src/store/authSlice';
 import { socketService } from '../src/services/socket';
 import { useWorkerLocationTracker } from '../src/hooks/useWorkerLocationTracker';
 import { useCustomerLocationTracker } from '../src/hooks/useCustomerLocationTracker';
@@ -16,7 +16,7 @@ function SocketHandler() {
 
   useEffect(() => {
     if (currentUser?.id) {
-      socketService.connect(currentUser.id);
+      socketService.connect();
     } else {
       socketService.disconnect();
     }
@@ -46,7 +46,35 @@ SplashScreen.preventAutoHideAsync();
 
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { I18nProvider } from '../src/hooks/useI18n';
+import { CountryProvider } from '../src/hooks/useCountry';
 import { useTheme } from '../src/hooks/useTheme';
+
+function SessionGate({ children }: { children: React.ReactNode }) {
+  const dispatch = useAppDispatch();
+  const restored = useAppSelector(selectSessionRestored);
+  const user = useAppSelector(selectCurrentUser);
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    dispatch(restoreSession());
+  }, [dispatch]);
+
+  // Keep the splash up until we know whether the stored session is still valid.
+  useEffect(() => {
+    if (restored) SplashScreen.hideAsync();
+  }, [restored]);
+
+  // Signed-out users can only see (auth) screens; signed-in users never see them.
+  useEffect(() => {
+    if (!restored) return;
+    const inAuth = segments[0] === '(auth)';
+    if (!user && !inAuth) router.replace('/(auth)/login' as any);
+    else if (user && inAuth) router.replace((user.type === 'worker' ? '/(worker)/today' : '/(customer)/(home)') as any);
+  }, [restored, user, segments, router]);
+
+  return restored ? <>{children}</> : null;
+}
 
 export default function RootLayout() {
   const theme = useTheme();
@@ -58,32 +86,30 @@ export default function RootLayout() {
     Inter_800ExtraBold,
   });
 
-  useEffect(() => {
-    if (fontsLoaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [fontsLoaded]);
-
   if (!fontsLoaded) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <Provider store={store}>
         <I18nProvider>
+          <CountryProvider>
           <BottomSheetModalProvider>
             <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-              <SocketHandler />
-              <LocationTrackerHandler />
-              <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: 'slide_from_right',
-                  contentStyle: { backgroundColor: theme.colors.background },
-                }}
-              />
+              <SessionGate>
+                <SocketHandler />
+                <LocationTrackerHandler />
+                <StatusBar style={theme.mode === 'dark' ? 'light' : 'dark'} />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: 'slide_from_right',
+                    contentStyle: { backgroundColor: theme.colors.background },
+                  }}
+                />
+              </SessionGate>
             </View>
           </BottomSheetModalProvider>
+          </CountryProvider>
         </I18nProvider>
       </Provider>
     </GestureHandlerRootView>

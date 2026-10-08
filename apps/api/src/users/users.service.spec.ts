@@ -1,57 +1,50 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { PrismaService } from '../database/prisma.service';
 
 describe('UsersService', () => {
-  let service: UsersService;
-
-  const mockPrisma = {
-    user: {
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-    },
+  const tx = { user: { update: jest.fn() } };
+  const prisma: any = {
+    user: { findMany: jest.fn(), findUnique: jest.fn() },
+    $transaction: jest.fn((fn: any) => fn(tx)),
   };
+  const storage = { consume: jest.fn() };
+  const svc = new UsersService(prisma, storage as any);
+  beforeEach(() => prisma.$transaction.mockImplementation((fn: any) => fn(tx)));
+  afterEach(() => jest.resetAllMocks());
 
-  beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        UsersService,
-        { provide: PrismaService, useValue: mockPrisma },
-      ],
-    }).compile();
-
-    service = module.get<UsersService>(UsersService);
+  it('never selects the password hash', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'u1' });
+    await svc.findById('u1');
+    expect(JSON.stringify(prisma.user.findUnique.mock.calls[0][0].select)).not.toMatch(/password|failedLogin|lockout/);
   });
 
-  afterEach(() => jest.clearAllMocks());
-
-  describe('findAll', () => {
-    it('should return all users', async () => {
-      mockPrisma.user.findMany.mockResolvedValue([{ id: '1', name: 'User 1' }]);
-      const result = await service.findAll();
-      expect(result).toEqual([{ id: '1', name: 'User 1' }]);
-    });
+  it('404 for a missing user', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(svc.findById('x')).rejects.toThrow(NotFoundException);
   });
 
-  describe('findById', () => {
-    it('should return user by id', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', name: 'User 1' });
-      const result = await service.findById('1');
-      expect(result).toEqual({ id: '1', name: 'User 1' });
+  describe('updateMe', () => {
+    beforeEach(() => prisma.user.findUnique.mockResolvedValue({ id: 'u1' }));
+
+    it('attaches a READY avatar upload that the user owns, storing its key', async () => {
+      storage.consume.mockResolvedValue(['avatar/u1/k.jpg']);
+      await svc.updateMe('u1', { avatarUploadId: 'up1', name: '  Ahmed  ' });
+      expect(storage.consume).toHaveBeenCalledWith('u1', ['up1'], 'AVATAR', tx);
+      expect(tx.user.update.mock.calls[0][0]).toEqual({
+        where: { id: 'u1' },
+        data: { name: 'Ahmed', locale: undefined, profileImageUrl: 'avatar/u1/k.jpg' },
+      });
     });
 
-    it('should throw NotFoundException if user not found', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.findById('nonexistent')).rejects.toThrow(NotFoundException);
+    it('can remove the avatar', async () => {
+      await svc.updateMe('u1', { removeAvatar: true });
+      expect(tx.user.update.mock.calls[0][0].data.profileImageUrl).toBeNull();
+      expect(storage.consume).not.toHaveBeenCalled();
     });
-  });
 
-  describe('findByEmail', () => {
-    it('should return user by email', async () => {
-      mockPrisma.user.findUnique.mockResolvedValue({ id: '1', email: 'test@example.com' });
-      const result = await service.findByEmail('test@example.com');
-      expect(result).toEqual({ id: '1', email: 'test@example.com' });
+    it('only name, locale and avatar can change: not phone, email, type or status', async () => {
+      await svc.updateMe('u1', { name: 'A B', phone: '+9200', type: 'admin', status: 'ACTIVE' } as any);
+      expect(Object.keys(tx.user.update.mock.calls[0][0].data).sort()).toEqual(['locale', 'name', 'profileImageUrl']);
     });
   });
 });

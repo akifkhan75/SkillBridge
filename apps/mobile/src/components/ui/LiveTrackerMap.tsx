@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E1E2D',
   },
   map: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   customerMarker: {
     backgroundColor: '#10B981',

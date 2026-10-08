@@ -1,55 +1,95 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service';
+import { JobAccessService } from '../common/access/job-access.service';
+import { AuditService } from '../common/audit/audit.service';
+import { CreateDisputeDto, ResolveDisputeDto } from './dto/dispute.dto';
 
 @Injectable()
 export class DisputesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: JobAccessService,
+    private readonly audit: AuditService,
+  ) {}
 
-  async createDispute(userId: string, data: { jobRequestId: string; reason: string; description?: string }) {
-    return this.prisma.dispute.create({
+  async createDispute(user: { id: string; type: string }, dto: CreateDisputeDto) {
+    await this.access.requireParticipant(dto.jobRequestId, user);
+    const dispute = await this.prisma.dispute.create({
       data: {
-        ...data,
-        raisedById: userId,
-      }
+        jobRequestId: dto.jobRequestId,
+        reason: dto.reason,
+        description: dto.description,
+        raisedById: user.id,
+      },
     });
+    await this.audit.record({
+      actorId: user.id,
+      action: 'dispute.opened',
+      entityType: 'Dispute',
+      entityId: dispute.id,
+      after: { jobRequestId: dto.jobRequestId, reason: dto.reason },
+    });
+    return dispute;
   }
 
-  async getDisputeById(id: string) {
-    const dispute = await this.prisma.dispute.findUnique({
-      where: { id },
+  async getDisputeById(id: string, user: { id: string; type: string }) {
+    const dispute = await this.prisma.dispute.findFirst({
+      where: {
+        id,
+        ...(user.type === 'admin'
+          ? {}
+          : {
+              OR: [
+                { raisedById: user.id },
+                { jobRequest: { customerId: user.id } },
+                { jobRequest: { assignedWorkerId: user.id } },
+              ],
+            }),
+      },
       include: {
         raisedBy: { select: { id: true, name: true, type: true } },
-        jobRequest: true
-      }
+        jobRequest: { select: { id: true, status: true, description: true } },
+      },
     });
-
     if (!dispute) throw new NotFoundException('Dispute not found');
     return dispute;
   }
 
-  async getUserDisputes(userId: string) {
+  getUserDisputes(userId: string) {
     return this.prisma.dispute.findMany({
       where: { raisedById: userId },
-      include: {
-        jobRequest: { select: { id: true, customerName: true, status: true } }
-      }
+      include: { jobRequest: { select: { id: true, status: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
     });
   }
 
-  async getAllDisputes() {
+  getAllDisputes() {
     return this.prisma.dispute.findMany({
       include: {
         raisedBy: { select: { id: true, name: true, type: true } },
-        jobRequest: { select: { id: true, customerName: true, status: true } }
+        jobRequest: { select: { id: true, customerName: true, status: true } },
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 200,
     });
   }
 
-  async updateDisputeStatus(id: string, status: string, resolution?: string) {
-    return this.prisma.dispute.update({
+  async updateDisputeStatus(id: string, dto: ResolveDisputeDto, adminId: string) {
+    const before = await this.prisma.dispute.findUnique({ where: { id } });
+    if (!before) throw new NotFoundException('Dispute not found');
+    const after = await this.prisma.dispute.update({
       where: { id },
-      data: { status, resolution }
+      data: { status: dto.status, resolution: dto.resolution },
     });
+    await this.audit.record({
+      actorId: adminId,
+      action: 'dispute.updated',
+      entityType: 'Dispute',
+      entityId: id,
+      before: { status: before.status, resolution: before.resolution },
+      after: { status: after.status, resolution: after.resolution },
+    });
+    return after;
   }
 }

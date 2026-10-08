@@ -29,15 +29,15 @@ export const fetchChatMessages = createAsyncThunk('chat/fetchMessages', async (t
 
 export const sendMessage = createAsyncThunk(
   'chat/sendMessage',
-  async (data: { threadId: string; receiverId: string; text: string }) => {
+  async (data: { threadId: string; text: string }) => {
     return api.sendChatMessage(data);
   },
 );
 
 export const markMessagesRead = createAsyncThunk(
   'chat/markRead',
-  async (data: { threadId: string; userId: string }) => {
-    return api.markMessagesAsRead(data.threadId, data.userId);
+  async (data: { threadId: string }) => {
+    return api.markMessagesAsRead(data.threadId);
   },
 );
 
