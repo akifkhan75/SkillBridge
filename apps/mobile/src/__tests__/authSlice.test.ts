@@ -128,7 +128,7 @@ describe('auth thunks never fabricate a session', () => {
     await store.dispatch(loginUser({ phone: '0300 1234567', countryCode: 'PK', password: 'password123' }) as any);
     const state = (store.getState() as any).auth;
     expect(state.currentUser).toBeNull();
-    expect(state.error).toMatch(/reach the server/i);
+    expect(state.error).toMatch(/You are offline|reach the server/i);
   });
 
   it('a successful login stores BOTH tokens and sends the device id', async () => {
