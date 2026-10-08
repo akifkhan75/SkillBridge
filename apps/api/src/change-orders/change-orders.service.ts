@@ -14,7 +14,7 @@ export class ChangeOrdersService {
 
   async create(workerId: string, dto: CreateChangeOrderDto) {
     const job = await this.access.requireAssignedWorker(dto.jobRequestId, workerId);
-    if (!['ACCEPTED', 'IN_PROGRESS'].includes(job.status)) {
+    if (!['ACCEPTED', 'EN_ROUTE', 'ARRIVED', 'IN_PROGRESS'].includes(job.status)) {
       throw new ConflictException('Extra work can only be requested on an active job');
     }
     return this.prisma.changeOrder.create({
@@ -24,6 +24,7 @@ export class ChangeOrdersService {
         addedScope: dto.addedScope,
         revisedPrice: dto.revisedPrice,
         currency: dto.currency?.toUpperCase() ?? 'USD',
+        mediaKeys: dto.mediaKeys ?? [],
         status: 'PENDING',
       },
     });

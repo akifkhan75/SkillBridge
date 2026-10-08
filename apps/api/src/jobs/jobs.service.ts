@@ -289,11 +289,42 @@ export class JobsService {
     return this.workerTransition(id, user, 'ACCEPTED', 'WORKER_ACCEPTED');
   }
 
-  async start(id: string, user: AuthUser) {
-    return this.workerTransition(id, user, 'IN_PROGRESS', 'WORK_STARTED');
+  async enRoute(id: string, user: AuthUser) {
+    return this.workerTransition(id, user, 'EN_ROUTE', 'EN_ROUTE');
+  }
+
+  async arrive(id: string, user: AuthUser) {
+    return this.workerTransition(id, user, 'ARRIVED', 'ARRIVED');
+  }
+
+  async start(id: string, user: AuthUser, dto?: { beforePhotoKey?: string }) {
+    if (user.type !== 'worker') throw new ForbiddenException('Only the assigned worker can do this');
+    const result = await this.transition(id, user, 'IN_PROGRESS', { onlyIf: { assignedWorkerId: user.id }, event: { type: 'WORK_STARTED' } });
+    if (dto?.beforePhotoKey) {
+      await this.prisma.jobMedia.create({ data: { jobRequestId: id, kind: 'PHOTO', phase: 'BEFORE', storageKey: dto.beforePhotoKey, mime: 'image/jpeg', createdById: user.id } });
+    }
+    return result;
+  }
+
+  async finish(id: string, user: AuthUser, dto?: { afterPhotoKey?: string }) {
+    if (user.type !== 'worker') throw new ForbiddenException('Only the assigned worker can do this');
+    const result = await this.transition(id, user, 'AWAITING_CONFIRMATION', { onlyIf: { assignedWorkerId: user.id }, event: { type: 'WORK_FINISHED' } });
+    if (dto?.afterPhotoKey) {
+      await this.prisma.jobMedia.create({ data: { jobRequestId: id, kind: 'PHOTO', phase: 'AFTER', storageKey: dto.afterPhotoKey, mime: 'image/jpeg', createdById: user.id } });
+    }
+    return result;
+  }
+
+  async confirm(id: string, user: AuthUser) {
+    if (user.type !== 'customer') throw new ForbiddenException('Only a customer can confirm completion');
+    return this.transition(id, user, 'COMPLETED', {
+      onlyIf: { customerId: user.id },
+      event: { type: 'WORK_COMPLETED' },
+    });
   }
 
   async complete(id: string, user: AuthUser) {
+    // Keep complete for backward compatibility or admin/worker force completion
     return this.workerTransition(id, user, 'COMPLETED', 'WORK_COMPLETED');
   }
 

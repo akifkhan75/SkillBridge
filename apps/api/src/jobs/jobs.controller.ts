@@ -56,10 +56,34 @@ export class JobsController {
     return this.jobsService.decline(id, user);
   }
 
+  @Post(':id/en-route')
+  @ApiOperation({ summary: 'Assigned worker is on the way' })
+  enRoute(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.enRoute(id, user);
+  }
+
+  @Post(':id/arrive')
+  @ApiOperation({ summary: 'Assigned worker has arrived' })
+  arrive(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.arrive(id, user);
+  }
+
   @Post(':id/start')
   @ApiOperation({ summary: 'Assigned worker starts the work' })
-  start(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.jobsService.start(id, user);
+  start(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: { beforePhotoKey?: string }) {
+    return this.jobsService.start(id, user, dto);
+  }
+
+  @Post(':id/finish')
+  @ApiOperation({ summary: 'Assigned worker finishes the work (awaiting confirmation)' })
+  finish(@Param('id') id: string, @CurrentUser() user: AuthUser, @Body() dto: { afterPhotoKey?: string }) {
+    return this.jobsService.finish(id, user, dto);
+  }
+
+  @Post(':id/confirm')
+  @ApiOperation({ summary: 'Customer confirms the work is completed' })
+  confirm(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    return this.jobsService.confirm(id, user);
   }
 
   @Post(':id/complete')

@@ -5,8 +5,11 @@ describe('job state machine', () => {
   it('allows the happy path in order', () => {
     assertTransition('MATCHES_FOUND', 'AWAITING_WORKER', 'customer');
     assertTransition('AWAITING_WORKER', 'ACCEPTED', 'worker');
-    assertTransition('ACCEPTED', 'IN_PROGRESS', 'worker');
-    assertTransition('IN_PROGRESS', 'COMPLETED', 'worker');
+    assertTransition('ACCEPTED', 'EN_ROUTE', 'worker');
+    assertTransition('EN_ROUTE', 'ARRIVED', 'worker');
+    assertTransition('ARRIVED', 'IN_PROGRESS', 'worker');
+    assertTransition('IN_PROGRESS', 'AWAITING_CONFIRMATION', 'worker');
+    assertTransition('AWAITING_CONFIRMATION', 'COMPLETED', 'customer');
   });
 
   it('rejects skipping steps (cannot jump straight to COMPLETED)', () => {
@@ -15,8 +18,8 @@ describe('job state machine', () => {
   });
 
   it('rejects the wrong actor', () => {
-    expect(() => assertTransition('ACCEPTED', 'IN_PROGRESS', 'customer')).toThrow(ForbiddenException);
-    expect(() => assertTransition('IN_PROGRESS', 'COMPLETED', 'customer')).toThrow(ForbiddenException);
+    expect(() => assertTransition('ACCEPTED', 'EN_ROUTE', 'customer')).toThrow(ForbiddenException);
+    expect(() => assertTransition('IN_PROGRESS', 'AWAITING_CONFIRMATION', 'customer')).toThrow(ForbiddenException);
     expect(() => assertTransition('AWAITING_WORKER', 'ACCEPTED', 'customer')).toThrow(ForbiddenException);
   });
 

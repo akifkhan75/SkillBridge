@@ -18,7 +18,10 @@ enum JobStatus {
   MATCHES_FOUND
   AWAITING_WORKER
   ACCEPTED
+  EN_ROUTE
+  ARRIVED
   IN_PROGRESS
+  AWAITING_CONFIRMATION
   COMPLETED
   CANCELLED
 }
@@ -84,6 +87,14 @@ enum UploadStatus {
   PENDING
   READY
   REJECTED
+}
+
+enum MediaPhase {
+  REQUEST
+  BEFORE
+  AFTER
+  CHANGE_ORDER
+  DISPUTE
 }
 
 model User {
@@ -393,6 +404,7 @@ model JobMedia {
   jobRequestId String
   jobRequest   JobRequest @relation(fields: [jobRequestId], references: [id], onDelete: Cascade)
   kind         MediaKind
+  phase        MediaPhase @default(REQUEST)
   /// Private object-storage key; served only through short-lived signed links.
   storageKey   String
   mime         String
@@ -469,6 +481,7 @@ model ChangeOrder {
   addedScope   String
   revisedPrice Int
   currency     String     @default("USD")
+  mediaKeys    String[]
   status       String     @default("PENDING") // PENDING, APPROVED, REJECTED
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt

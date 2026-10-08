@@ -15,6 +15,9 @@ export class CreateChangeOrderDto {
   @IsInt() @Min(1) @Max(100_000_000)
   revisedPrice: number;
 
+  @IsOptional() @IsString({ each: true })
+  mediaKeys?: string[];
+
   @IsOptional() @IsString() @Length(3, 3)
   currency?: string;
 }

@@ -141,7 +141,7 @@ export class ChatGateway implements OnGatewayConnection {
     if (!data || client.data.userType !== 'worker') return;
 
     const job = await this.prisma.jobRequest.findFirst({
-      where: { id: data.jobId, assignedWorkerId: client.data.userId, status: { in: ['ACCEPTED', 'IN_PROGRESS'] } },
+      where: { id: data.jobId, assignedWorkerId: client.data.userId, status: 'EN_ROUTE' },
       select: { customerId: true },
     });
     if (!job) return;

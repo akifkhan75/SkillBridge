@@ -5,7 +5,10 @@ export type JobStatus =
   | 'MATCHES_FOUND'
   | 'AWAITING_WORKER'
   | 'ACCEPTED'
+  | 'EN_ROUTE'
+  | 'ARRIVED'
   | 'IN_PROGRESS'
+  | 'AWAITING_CONFIRMATION'
   | 'COMPLETED'
   | 'CANCELLED';
 
@@ -37,12 +40,26 @@ export const JOB_TRANSITIONS: Record<JobStatus, Rule[]> = {
     { to: 'CANCELLED', actors: ['customer', 'admin'] },
   ],
   ACCEPTED: [
+    { to: 'EN_ROUTE', actors: ['worker'] },
+    { to: 'ARRIVED', actors: ['worker'] }, // allowed to skip en-route if they forgot
+    { to: 'IN_PROGRESS', actors: ['worker'] }, // allowed to skip en-route/arrived if they forgot
+    { to: 'CANCELLED', actors: ['customer', 'worker', 'admin'] },
+  ],
+  EN_ROUTE: [
+    { to: 'ARRIVED', actors: ['worker'] },
+    { to: 'IN_PROGRESS', actors: ['worker'] },
+    { to: 'CANCELLED', actors: ['customer', 'worker', 'admin'] },
+  ],
+  ARRIVED: [
     { to: 'IN_PROGRESS', actors: ['worker'] },
     { to: 'CANCELLED', actors: ['customer', 'worker', 'admin'] },
   ],
   IN_PROGRESS: [
-    { to: 'COMPLETED', actors: ['worker'] },
+    { to: 'AWAITING_CONFIRMATION', actors: ['worker'] },
     { to: 'CANCELLED', actors: ['admin'] },
+  ],
+  AWAITING_CONFIRMATION: [
+    { to: 'COMPLETED', actors: ['customer', 'admin', 'worker'] }, // worker might auto-confirm if customer doesn't
   ],
   COMPLETED: [],
   CANCELLED: [],
