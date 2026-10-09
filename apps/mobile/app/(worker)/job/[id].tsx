@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../../src/hooks/useTheme';
@@ -36,7 +36,7 @@ export default function WorkerJobScreen() {
   const [coScope, setCoScope] = useState('');
   const [coPriceStr, setCoPriceStr] = useState('');
   const dispatch = useAppDispatch();
-  const currentUser = useAppSelector(state => state.auth.user);
+  const currentUser = useAppSelector(state => state.auth.currentUser);
   
   // Booked by the customer, chosen someone else, cancelled: the screen follows along.
   useLiveReload(reload, ['job.updated', 'feed.updated'], (e) => e.data?.jobId === id);
@@ -144,7 +144,7 @@ export default function WorkerJobScreen() {
       <JobMedia media={job.media ?? []} />
       
       {creatingChangeOrder && (
-        <View style={{ marginTop: 20, backgroundColor: theme.colors.surfaceVariant, padding: 16, borderRadius: theme.borderRadius.lg }}>
+        <View style={{ marginTop: 20, backgroundColor: theme.colors.surfaceElevated, padding: 16, borderRadius: theme.borderRadius.lg }}>
           <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ marginBottom: 12 }}>New Change Order</Text>
           <View style={{ gap: 12 }}>
             <TextInput label="Reason for change" value={coReason} onChangeText={setCoReason} placeholder="e.g. Found water damage" />

@@ -2,7 +2,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import authReducer, { sessionExpired } from './authSlice';
 import { setSessionExpiredHandler } from '../services/session';
 import workerFlowReducer from './workerFlowSlice';
-import chatReducer from './chatSlice';
+
 import uiReducer from './uiSlice';
 
 import trackingReducer from './trackingSlice';
@@ -11,7 +11,7 @@ export const store = configureStore({
   reducer: {
     auth: authReducer,
     workerFlow: workerFlowReducer,
-    chat: chatReducer,
+
     ui: uiReducer,
     tracking: trackingReducer,
   },

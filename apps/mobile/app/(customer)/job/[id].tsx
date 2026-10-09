@@ -47,7 +47,7 @@ export default function CustomerJobScreen() {
 
   const dispatch = useAppDispatch();
   const trackingState = useAppSelector(selectTrackingState);
-  const currentUser = useAppSelector(state => state.auth.user);
+  const currentUser = useAppSelector(state => state.auth.currentUser);
 
   useEffect(() => {
     if (job?.status === 'EN_ROUTE' && job.assignedWorker) {
@@ -129,9 +129,9 @@ export default function CustomerJobScreen() {
         <View style={{ marginTop: 6 }}>
           <Text variant="bodyLarge" weight="semibold" color={theme.colors.textPrimary}>Agreed price: {formatMoney(job.agreedAmount, job.agreedCurrency, locale)}</Text>
           {payment?.status === 'MARKED_BY_WORKER' && (
-            <View style={{ backgroundColor: theme.colors.surfaceVariant, padding: 16, borderRadius: theme.borderRadius.lg, marginTop: 12 }}>
+            <View style={{ backgroundColor: theme.colors.surfaceElevated, padding: 16, borderRadius: theme.borderRadius.lg, marginTop: 12 }}>
               <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>Professional requested payment</Text>
-              <Text variant="bodyMedium" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>They marked that you paid them in cash. Please confirm this.</Text>
+              <Text variant="body" color={theme.colors.textSecondary} style={{ marginTop: 4 }}>They marked that you paid them in cash. Please confirm this.</Text>
               <View style={{ marginTop: 12 }}>
                 <Button title="Confirm Cash Given" variant="primary" loading={busy} disabled={busy} onPress={confirmCash} />
               </View>

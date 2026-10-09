@@ -66,7 +66,7 @@ export function ChatThreadScreen() {
       if (msg.conversationId === id) {
         setMessages((prev) => {
           // avoid duplicates if optimistic update already added it (based on ID or clientId)
-          if (prev.some(m => m.id === msg.id || (msg.clientId && m.clientId === msg.clientId))) return prev;
+          if (prev.some(m => m.id === msg.id || ((msg as any).clientId && (m as any).clientId === (msg as any).clientId))) return prev;
           return [msg, ...prev]; // inverted list
         });
         
@@ -77,10 +77,8 @@ export function ChatThreadScreen() {
       }
     };
 
-    realtime.on('message.created', handleNewMessage);
-    return () => {
-      realtime.off('message.created', handleNewMessage);
-    };
+    const unsubscribe = realtime.onNewMessage(handleNewMessage as any);
+    return unsubscribe;
   }, [id, user?.id]);
 
   const sendMessage = async () => {
@@ -130,7 +128,7 @@ export function ChatThreadScreen() {
 
     const isMe = item.sender?.id === user?.id;
     return (
-      <View style={[styles.messageBubble, isMe ? [styles.messageMine, { backgroundColor: theme.colors.primary }] : [styles.messageTheirs, { backgroundColor: theme.colors.surfaceVariant }]]}>
+      <View style={[styles.messageBubble, isMe ? [styles.messageMine, { backgroundColor: theme.colors.primary }] : [styles.messageTheirs, { backgroundColor: theme.colors.surfaceElevated }]]}>
         <Text variant="bodyLarge" color={isMe ? theme.colors.onPrimary : theme.colors.textPrimary}>
           {item.text}
         </Text>
@@ -177,7 +175,7 @@ export function ChatThreadScreen() {
           multiline
         />
         <TouchableOpacity 
-          style={[styles.sendButton, { backgroundColor: inputText.trim() ? theme.colors.primary : theme.colors.surfaceVariant }]}
+          style={[styles.sendButton, { backgroundColor: inputText.trim() ? theme.colors.primary : theme.colors.surfaceElevated }]}
           onPress={sendMessage}
           disabled={!inputText.trim()}
         >

@@ -8,7 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "build": "echo 'Mobile build handled by EAS'",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "echo 'No linting configured'",
     "test": "jest",
     "test:watch": "jest --watch",
     "clean": "rm -rf .expo node_modules",

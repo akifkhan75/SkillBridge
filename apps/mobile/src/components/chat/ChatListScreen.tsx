@@ -43,7 +43,7 @@ export function ChatListScreen() {
           {counterpart?.profileImageUrl ? (
             <Image source={{ uri: counterpart.profileImageUrl }} style={styles.avatar} />
           ) : (
-            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.surfaceVariant }]}>
+            <View style={[styles.avatarPlaceholder, { backgroundColor: theme.colors.surfaceElevated }]}>
               <Ionicons name="person" size={24} color={theme.colors.textSecondary} />
             </View>
           )}
@@ -64,7 +64,7 @@ export function ChatListScreen() {
           
           <View style={styles.messageRow}>
             <Text 
-              variant="bodyMedium" 
+              variant="body" 
               color={unread ? theme.colors.textPrimary : theme.colors.textSecondary}
               weight={unread ? 'bold' : 'normal'}
               numberOfLines={1}

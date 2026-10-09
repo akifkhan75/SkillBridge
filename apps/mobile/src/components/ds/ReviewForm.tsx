@@ -36,7 +36,7 @@ export function ReviewForm({ jobId, targetId, targetName, onSubmitted }: ReviewF
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surfaceVariant, borderRadius: theme.borderRadius.xl }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.surfaceElevated, borderRadius: theme.borderRadius.xl }]}>
       <Text variant="h3" weight="bold" color={theme.colors.textPrimary} style={{ textAlign: 'center' }}>
         How was your experience with {targetName}?
       </Text>

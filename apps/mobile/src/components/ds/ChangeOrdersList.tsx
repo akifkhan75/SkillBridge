@@ -55,10 +55,10 @@ export function ChangeOrdersList({ jobId, viewer, onReloadRequested }: ChangeOrd
     <View style={{ marginTop: 24 }}>
       <Text variant="bodySmall" weight="semibold" color={theme.colors.textSecondary}>{t('job.changeOrders')}</Text>
       {orders.map(order => (
-        <View key={order.id} style={{ backgroundColor: theme.colors.surfaceVariant, padding: 16, borderRadius: theme.borderRadius.lg, marginTop: 12 }}>
+        <View key={order.id} style={{ backgroundColor: theme.colors.surfaceElevated, padding: 16, borderRadius: theme.borderRadius.lg, marginTop: 12 }}>
           <Text variant="bodyLarge" weight="bold" color={theme.colors.textPrimary}>{t('job.additionalWork')}</Text>
-          <Text variant="bodyMedium" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>Reason: {order.reason}</Text>
-          <Text variant="bodyMedium" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>Scope: {order.addedScope}</Text>
+          <Text variant="body" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>Reason: {order.reason}</Text>
+          <Text variant="body" color={theme.colors.textPrimary} style={{ marginTop: 4 }}>Scope: {order.addedScope}</Text>
           <Text variant="bodyLarge" weight="bold" color={theme.colors.primary} style={{ marginTop: 8 }}>
             New Total: {formatMoney(order.revisedPrice, order.currency, locale)}
           </Text>

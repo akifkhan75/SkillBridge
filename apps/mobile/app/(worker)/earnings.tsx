@@ -26,7 +26,7 @@ export default function WorkerEarningsScreen() {
     const isPositive = item.amount > 0;
     
     return (
-      <View style={[styles.historyItem, { backgroundColor: theme.colors.surfaceVariant }]}>
+      <View style={[styles.historyItem, { backgroundColor: theme.colors.surfaceElevated }]}>
         <View style={styles.historyIcon}>
           <Ionicons 
             name={item.type === 'COMMISSION_OWED' ? 'cash-outline' : item.type === 'PAYOUT' ? 'card-outline' : 'swap-horizontal-outline'} 
@@ -35,7 +35,7 @@ export default function WorkerEarningsScreen() {
           />
         </View>
         <View style={styles.historyText}>
-          <Text variant="bodyMedium" weight="semibold" color={theme.colors.textPrimary}>
+          <Text variant="body" weight="semibold" color={theme.colors.textPrimary}>
             {item.type.replace(/_/g, ' ')}
           </Text>
           <Text variant="caption" color={theme.colors.textTertiary}>
