@@ -43,7 +43,7 @@ describe('JobsService', () => {
     issues: [{ code: 'leaking_tap', name: 'Leaking tap' }, { code: 'pipe_burst', name: 'Burst pipe' }],
   };
   const address = { id: 'a1', userId: 'c1', streetAddress: 'House 12', area: 'Gulshan', city: 'Karachi', buildingDetail: 'Flat 3', latitude: 24.9, longitude: 67.1 };
-  const dto = (over: any = {}) => ({ categoryId: 'cat1', issueCodes: ['leaking_tap'], addressId: 'a1', when: 'TODAY' as const, idempotencyKey: 'key-12345678', ...over });
+  const dto = (over: any = {}) => ({ categoryId: 'cat1', issueCodes: ['leaking_tap'], addressId: 'a1', when: 'TODAY' as const, idempotencyKey: 'test-idemp-key', ...over });
 
   function primeCreate() {
     prisma.jobRequest.findUnique.mockResolvedValue(null);
