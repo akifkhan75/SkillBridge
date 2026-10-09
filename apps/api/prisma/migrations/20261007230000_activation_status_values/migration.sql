@@ -1,0 +1,3 @@
+ALTER TYPE "ActivationStatus" ADD VALUE 'ONBOARDING';
+ALTER TYPE "ActivationStatus" ADD VALUE 'REJECTED';
+ALTER TYPE "ActivationStatus" ADD VALUE 'SUSPENDED';

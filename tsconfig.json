@@ -1,3 +1,7 @@
 {
-  "extends": "@react-native/typescript-config"
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "extends": "expo/tsconfig.base"
 }

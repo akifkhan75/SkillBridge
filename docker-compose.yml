@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fixli-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fixli}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-fixli}
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-fixli}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fixli-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@fixli.dev}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD must be set in .env}
+    ports:
+      - '5050:80'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  api:
+    image: node:20
+    container_name: fixli-api
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && pnpm run db:generate && pnpm run dev:api"
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fixli}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fixli}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env (openssl rand -base64 48)}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: 3002
+      NODE_ENV: ${NODE_ENV:-development}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - '3002:3002'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+
+  admin:
+    image: node:20
+    container_name: fixli-admin
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && cd apps/admin && pnpm run dev -- --host 0.0.0.0 --port 5173"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '5173:5173'
+    depends_on:
+      - api
+    volumes:
+      - ./:/app
+
+  web:
+    image: node:20
+    container_name: fixli-web
+    working_dir: /app
+    command: sh -c "npm install -g pnpm && pnpm install && cd apps/web && pnpm run dev -- --host 0.0.0.0 --port 5174"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+    ports:
+      - '5174:5174'
+    depends_on:
+      - api
+    volumes:
+      - ./:/app
+
+volumes:
+  postgres_data:
+  pgadmin_data:

@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.expo
+**/.turbo
+**/coverage
+venv
+.git
+**/.env
+**/.env.*
+!**/.env.example
+docs
+*.zip

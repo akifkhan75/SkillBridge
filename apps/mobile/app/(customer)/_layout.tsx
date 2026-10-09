@@ -1,0 +1,83 @@
+import React from 'react';
+import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../../src/hooks/useTheme';
+import { useI18n } from '../../src/hooks/useI18n';
+
+export default function CustomerLayout() {
+  const theme = useTheme();
+  const { t } = useI18n();
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarStyle: {
+          backgroundColor: theme.colors.surface,
+          borderTopColor: theme.colors.border,
+          borderTopWidth: 1,
+          height: 85,
+          paddingBottom: 25,
+          paddingTop: 10,
+        },
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.textTertiary,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: '600',
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="(home)"
+        options={{
+          title: t('nav.home') || 'Home',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: t('nav.bookings') || 'My Jobs',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: t('nav.messages') || 'Messages',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="chatbubbles" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: t('nav.profile') || 'Account',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="request-service"
+        options={{
+          href: null,
+          title: 'Request Service',
+        }}
+      />
+      <Tabs.Screen
+        name="job/[id]"
+        options={{
+          href: null,
+          title: 'Job',
+        }}
+      />
+    </Tabs>
+  );
+}

@@ -1,0 +1,90 @@
+{
+  "expo": {
+    "name": "Fixli",
+    "slug": "fixli",
+    "version": "2.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "fixli",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/logo-light.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F1F5F9",
+      "dark": {
+        "image": "./assets/images/logo-dark.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#0A1228"
+      }
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fixli.app",
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.fixli.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-localization",
+      "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/logo-light.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#F1F5F9",
+          "dark": {
+            "image": "./assets/images/logo-dark.png",
+            "backgroundColor": "#0A1228"
+          }
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Fixli uses the microphone only when you hold the button to describe your problem by voice."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Fixli uses the camera when you take a photo of the problem, your ID, or your work.",
+          "photosPermission": "Fixli opens your photos when you choose a picture of the problem or your work."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fixli uses your location to fill in your address and find professionals near you."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#007BFF",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-image",
+      "@sentry/react-native"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
