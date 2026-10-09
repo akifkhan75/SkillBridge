@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { PrismaService } from '../database/prisma.service';
+import { NotificationService } from '../notifications/notifications.service';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -14,7 +15,11 @@ describe('ChatService', () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [ChatService, { provide: PrismaService, useValue: mockPrisma }],
+      providers: [
+        ChatService, 
+        { provide: PrismaService, useValue: mockPrisma },
+        { provide: NotificationService, useValue: { sendPushNotification: jest.fn() } }
+      ],
     }).compile();
     service = module.get(ChatService);
   });
