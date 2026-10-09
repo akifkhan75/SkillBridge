@@ -2,6 +2,20 @@ import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import DocumentVerification from '../DocumentVerification';
 
+jest.mock('../../../hooks/useI18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => {
+      const m: any = {
+        'verify.title': 'Identity & License Verification',
+        'verify.upload': 'Tap to upload documents',
+        'verify.ocr': 'Running OCR Scan...',
+        'verify.success': 'Documents Verified'
+      };
+      return m[key] || key;
+    },
+  }),
+}));
+
 describe('DocumentVerification', () => {
   beforeEach(() => {
     jest.useFakeTimers();

@@ -2,6 +2,20 @@ import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
 import WorkerPortfolio from '../WorkerPortfolio';
 
+jest.mock('../../../hooks/useI18n', () => ({
+  useI18n: () => ({
+    t: (key: string) => {
+      const m: any = {
+        'portfolio.empty': 'No portfolio items yet.',
+        'portfolio.title': 'Portfolio & Past Work',
+        'portfolio.before': 'Before',
+        'portfolio.after': 'After'
+      };
+      return m[key] || key;
+    },
+  }),
+}));
+
 describe('WorkerPortfolio', () => {
   it('renders empty state when no portfolio items are provided', () => {
     const { getByText } = render(<WorkerPortfolio portfolio={[]} />);
